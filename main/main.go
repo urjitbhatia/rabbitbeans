@@ -24,23 +24,29 @@ const (
 func main() {
 	config := configure()
 	// The channel that takes in rabbits (rabbit jobs) and delivers them to beans (beanstalkd)
-	jobs := make(chan amqp.Delivery)
 	var waitGroup sync.WaitGroup
 	if config.RabbitToBean {
+		jobs := make(chan amqp.Delivery)
+
 		waitGroup.Add(1)
 		consumeRabbits(waitGroup, jobs)
 
 		waitGroup.Add(1)
 		produceBeans(waitGroup, jobs)
 	} else {
+		jobs := make(chan beans.Bean)
+
 		waitGroup.Add(1)
-		produceRabbits(waitGroup)
+		consumeBeans(waitGroup, jobs)
+
+		waitGroup.Add(1)
+		produceRabbits(waitGroup, jobs)
 	}
 
 	waitGroup.Wait()
 }
 
-func consumeRabbits(waitGroup sync.WaitGroup, jobs chan amqp.Delivery) {
+func consumeRabbits(waitGroup sync.WaitGroup, jobs chan<- amqp.Delivery) {
 	config := rabbit.Config{}
 	rabbitConn := rabbit.Dial(config)
 	queueName := "scheduler"
@@ -50,31 +56,45 @@ func consumeRabbits(waitGroup sync.WaitGroup, jobs chan amqp.Delivery) {
 	}()
 }
 
+func consumeBeans(waitGroup sync.WaitGroup, jobs chan<- beans.Bean) {
+	go func() {
+		defer waitGroup.Done()
+		config := beans.Config{
+			"127.0.0.1",
+			"11300",
+			2,
+		}
+		beansConn := beans.Dial(config)
+		beansConn.Consume(jobs)
+	}()
+}
+
 func produceBeans(waitGroup sync.WaitGroup, jobs <-chan amqp.Delivery) {
 	go func() {
 		defer waitGroup.Done()
 		config := beans.Config{
 			"127.0.0.1",
 			"11300",
+			0,
 		}
 		beansConn := beans.Dial(config)
 		beansConn.Publish(jobs)
 	}()
 }
 
-func produceRabbits(waitGroup sync.WaitGroup) {
+func produceRabbits(waitGroup sync.WaitGroup, jobs <-chan beans.Bean) {
 	config := rabbit.Config{}
 	rabbitConn := rabbit.Dial(config)
 	queueName := "scheduler"
-	toSend := []string{"first produce", "second produce"}
-	sendChan := make(chan string)
+	//	toSend := []string{"first produce", "second produce"}
+	//	sendChan := make(chan string)
 	go func() {
 		defer waitGroup.Done()
-		rabbitConn.Produce(queueName, sendChan)
+		rabbitConn.Produce(queueName, jobs)
 	}()
-	for _, ts := range toSend {
-		sendChan <- ts
-	}
+	//	for _, ts := range toSend {
+	//		sendChan <- ts
+	//	}
 }
 
 func configure() Config {

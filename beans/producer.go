@@ -10,17 +10,24 @@ import (
 )
 
 const (
-	protocol    = "tcp"
-	defaultHost = "127.0.0.1"
-	defaultPort = "11300"
+	protocol            = "tcp"
+	defaultHost         = "127.0.0.1"
+	defaultPort         = "11300"
+	defaultTickInterval = 2 //seconds
 )
 
 // Config caputures the fields for defining connection parameters
 // Host points to beanstalkd host
 // Port points to the port beanstalkd host is listening on
 type Config struct {
-	Host string
-	Port string
+	Host         string
+	Port         string
+	TickInterval int
+}
+
+type Bean struct {
+	Id   uint64
+	Body []byte
 }
 
 type Connection struct {
@@ -44,6 +51,33 @@ func (conn *Connection) Publish(jobs <-chan amqp.Delivery) {
 	}
 }
 
+func (conn *Connection) Consume(jobs chan<- Bean) {
+
+	log.Printf(" [*] Consuming beans. To exit press CTRL+C")
+
+	ticker := time.NewTicker(time.Duration(conn.config.TickInterval) * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+			    log.Printf("Polling again...")
+				id, body, err := conn.beansConnection.Reserve(5 * time.Second)
+				if cerr, ok := err.(beanstalk.ConnError); !ok {
+					rabbitbeans.FailOnError(err, "expected connError")
+				} else if cerr.Err != beanstalk.ErrTimeout {
+					rabbitbeans.FailOnError(err, "expected timeout on reserve")
+				}
+				log.Printf("Reserved job %v %s", id, body)
+				jobs <- Bean{
+					id,
+					body,
+				}
+				conn.beansConnection.Delete(id)
+			}
+		}
+	}()
+}
+
 func Dial(config Config) *Connection {
 
 	if config.Host == "" {
@@ -51,6 +85,9 @@ func Dial(config Config) *Connection {
 	}
 	if config.Port == "" {
 		config.Port = defaultPort
+	}
+	if config.TickInterval == 0 {
+		config.TickInterval = defaultTickInterval
 	}
 
 	var connString = fmt.Sprintf("%s:%s", config.Host, config.Port)

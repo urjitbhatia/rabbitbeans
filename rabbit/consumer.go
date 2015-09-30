@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/streadway/amqp"
 	"github.com/urjitbhatia/rabbitbeans"
+	"github.com/urjitbhatia/rabbitbeans/beans"
 	"log"
 )
 
@@ -28,7 +29,7 @@ type Connection struct {
 // InitAndListenQueue connects to the rabbitMQ queue defined in the config
 // (if it does not exit, it will error). Then it listens to messages on that
 // queue and redirects then to the jobs channnel
-func (conn *Connection) Produce(queueName string, jobs <-chan string) {
+func (conn *Connection) Produce(queueName string, jobs <-chan beans.Bean) {
 
 	ch, err := conn.rabbitConnection.Channel()
 	rabbitbeans.FailOnError(err, "Failed to open a channel")
@@ -42,7 +43,7 @@ func (conn *Connection) Produce(queueName string, jobs <-chan string) {
 
 	log.Printf(" [*] Sending rabbits. To exit press CTRL+C")
 	for d := range jobs {
-		log.Printf("Sending message: %s", d)
+		log.Printf("Sending rabbit to queue: %s", d)
 		err = ch.Publish(
 			"",        // exchange
 			queueName, // routing key
@@ -50,7 +51,7 @@ func (conn *Connection) Produce(queueName string, jobs <-chan string) {
 			false,     // immediate
 			amqp.Publishing{
 				ContentType: "text/plain",
-				Body:        []byte(d),
+				Body:        []byte(d.Body),
 			})
 		rabbitbeans.FailOnError(err, fmt.Sprintf("Failed to find queue named: %s", queueName))
 	}
@@ -84,7 +85,7 @@ func (conn *Connection) Consume(queueName string, jobs chan<- amqp.Delivery) {
 
 	log.Printf(" [*] Waiting for rabbits. To exit press CTRL+C")
 	for d := range msgs {
-		log.Printf("Received a message: %s", d.Body)
+		log.Printf("Received a rabbit from queue: %s", d.Body)
 		jobs <- d
 	}
 }
