@@ -9,7 +9,7 @@ import (
 func FailOnError(err error, msg string) {
 	if err != nil {
 		log.Fatalf("%s: %s", msg, err)
-		panic(fmt.Sprintf("%s: %s", msg, err))
+		panic(fmt.Sprintf("%s: %s", err, msg))
 	}
 }
 
@@ -17,6 +17,6 @@ func FailOnError(err error, msg string) {
 // Use this to log recoverable errors and continue
 func LogOnError(err error, msg string) {
 	if err != nil {
-		log.Printf("Recovering from error: %s: %s", msg, err)
+		log.Printf("Recovering from error: %s: %s", err, msg)
 	}
 }
