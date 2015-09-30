@@ -25,16 +25,21 @@ type Config struct {
 	TickInterval int
 }
 
+// Bean captures a "job" from beanstalkd
 type Bean struct {
 	Id   uint64
 	Body []byte
 }
 
+// Connection captures the config used to connect to beanstalkd and
+// the internal beanstalkd connection as well. This connection object can then be used
+// to multiplex multiple produce/consume actions
 type Connection struct {
 	config          Config
 	beansConnection *beanstalk.Conn
 }
 
+// Publish puts jobs onto beanstalkd. The jobs channel expects messages of type amqp.Delivery
 func (conn *Connection) Publish(jobs <-chan amqp.Delivery) {
 
 	log.Printf(" [*] Publishing beans. To exit press CTRL+C")
@@ -51,6 +56,7 @@ func (conn *Connection) Publish(jobs <-chan amqp.Delivery) {
 	}
 }
 
+// Consumes jobs off of beanstalkd. The jobs channel posts messages of type beans.Bean
 func (conn *Connection) Consume(jobs chan<- Bean) {
 
 	log.Printf(" [*] Consuming beans. To exit press CTRL+C")
@@ -60,7 +66,7 @@ func (conn *Connection) Consume(jobs chan<- Bean) {
 		for {
 			select {
 			case <-ticker.C:
-			    log.Printf("Polling again...")
+				log.Printf("Polling beanstalkd for beans")
 				id, body, err := conn.beansConnection.Reserve(5 * time.Second)
 				if cerr, ok := err.(beanstalk.ConnError); !ok {
 					rabbitbeans.FailOnError(err, "expected connError")
@@ -78,6 +84,8 @@ func (conn *Connection) Consume(jobs chan<- Bean) {
 	}()
 }
 
+// Dial connects to a beanstalkd instance.
+// Returns a multiplexable connection that can then be used to put/reserve jobs.
 func Dial(config Config) *Connection {
 
 	if config.Host == "" {

@@ -86,15 +86,10 @@ func produceRabbits(waitGroup sync.WaitGroup, jobs <-chan beans.Bean) {
 	config := rabbit.Config{}
 	rabbitConn := rabbit.Dial(config)
 	queueName := "scheduler"
-	//	toSend := []string{"first produce", "second produce"}
-	//	sendChan := make(chan string)
 	go func() {
 		defer waitGroup.Done()
 		rabbitConn.Produce(queueName, jobs)
 	}()
-	//	for _, ts := range toSend {
-	//		sendChan <- ts
-	//	}
 }
 
 func configure() Config {

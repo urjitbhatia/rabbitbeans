@@ -21,14 +21,17 @@ type Config struct {
 	AmqpConfig amqp.Config // amqp config
 }
 
+// Connection captures the config used to connect to rabbitMq and
+// the internal amqp connection as well. This connection object can then be used
+// to multiplex multiple Producers and Consumers
 type Connection struct {
-	config         Config
+	config           Config
 	rabbitConnection *amqp.Connection
 }
 
-// InitAndListenQueue connects to the rabbitMQ queue defined in the config
-// (if it does not exit, it will error). Then it listens to messages on that
-// queue and redirects then to the jobs channnel
+// Produce connects to the rabbitMQ queue defined in the config
+// (if it does not exit, it will error). Then it pushes to messages on that
+// queue whenever it gets a new one on the jobs channel.
 func (conn *Connection) Produce(queueName string, jobs <-chan beans.Bean) {
 
 	ch, err := conn.rabbitConnection.Channel()
@@ -57,7 +60,7 @@ func (conn *Connection) Produce(queueName string, jobs <-chan beans.Bean) {
 	}
 }
 
-// InitAndListenQueue connects to the rabbitMQ queue defined in the config
+// Consume connects to the rabbitMQ queue defined in the config
 // (if it does not exit, it will error). Then it listens to messages on that
 // queue and redirects then to the jobs channnel
 func (conn *Connection) Consume(queueName string, jobs chan<- amqp.Delivery) {
@@ -90,6 +93,8 @@ func (conn *Connection) Consume(queueName string, jobs chan<- amqp.Delivery) {
 	}
 }
 
+// Dial connects to an amqp URL where it expects a rabbitMQ instance to be running.
+// Returns a multiplexable connection that can then be used to produce/consume on different queues
 func Dial(config Config) *Connection {
 
 	if config.AmqpUrl == "" {
