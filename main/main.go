@@ -1,15 +1,16 @@
 package main
 
 import (
+	"github.com/streadway/amqp"
 	"github.com/urjitbhatia/rabbitbeans/beans"
 	"github.com/urjitbhatia/rabbitbeans/rabbit"
-	"github.com/streadway/amqp"
 	"sync"
 )
 
 func main() {
-
-	jobs := make(chan amqp.Delivery) // channel joining rabbit to beanstalkd
+    
+    // The channel that takes in rabbits (rabbit jobs) and delivers them to beans (beanstalkd)
+	jobs := make(chan amqp.Delivery)
 	var waitGroup sync.WaitGroup
 
 	waitGroup.Add(1)
