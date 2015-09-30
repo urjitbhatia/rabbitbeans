@@ -23,7 +23,28 @@ type Config struct {
 	Port string
 }
 
-func InitAndPublishJobs(config Config, jobs <-chan amqp.Delivery) {
+type Connection struct {
+	config          Config
+	beansConnection *beanstalk.Conn
+}
+
+func (conn *Connection) Publish(jobs <-chan amqp.Delivery) {
+
+	log.Printf(" [*] Publishing beans. To exit press CTRL+C")
+	for d := range jobs {
+		log.Printf("Received a message: %s", d.Body)
+		id, err := conn.beansConnection.Put(
+			d.Body, //body
+			0,      //pri uint32
+			0,      //delay
+			10*60*time.Second, // TTR time to run -- is an integer number of seconds to allow a worker to run this job
+		)
+		rabbitbeans.LogOnError(err, fmt.Sprintf("Failed to put job on beanstalkd %s", d.Body))
+		fmt.Println("Created job", id)
+	}
+}
+
+func Dial(config Config) *Connection {
 
 	if config.Host == "" {
 		config.Host = defaultHost
@@ -35,17 +56,8 @@ func InitAndPublishJobs(config Config, jobs <-chan amqp.Delivery) {
 	var connString = fmt.Sprintf("%s:%s", config.Host, config.Port)
 	conn, err := beanstalk.Dial(protocol, connString)
 	rabbitbeans.FailOnError(err, fmt.Sprintf("Failed to connect to Beanstalkd at: %s", connString))
-
-	log.Printf(" [*] Waiting for beans. To exit press CTRL+C")
-	for d := range jobs {
-		log.Printf("Received a message: %s", d.Body)
-		id, err := conn.Put(
-			d.Body, //body
-			0,      //pri uint32
-			0,      //delay
-			10*60*time.Second, // TTR time to run -- is an integer number of seconds to allow a worker to run this job
-		)
-		rabbitbeans.LogOnError(err, fmt.Sprintf("Failed to put job on beanstalkd %s", d.Body))
-		fmt.Println("Created job", id)
+	return &Connection{
+		config,
+		conn,
 	}
 }

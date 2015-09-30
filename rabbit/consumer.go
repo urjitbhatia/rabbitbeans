@@ -22,7 +22,7 @@ type Config struct {
 
 type Connection struct {
 	config         Config
-	amqpConnection *amqp.Connection
+	rabbitConnection *amqp.Connection
 }
 
 // InitAndListenQueue connects to the rabbitMQ queue defined in the config
@@ -30,7 +30,7 @@ type Connection struct {
 // queue and redirects then to the jobs channnel
 func (conn *Connection) Produce(queueName string, jobs <-chan string) {
 
-	ch, err := conn.amqpConnection.Channel()
+	ch, err := conn.rabbitConnection.Channel()
 	rabbitbeans.FailOnError(err, "Failed to open a channel")
 	defer ch.Close() // Clean up by closing channel when function exits
 
@@ -61,7 +61,7 @@ func (conn *Connection) Produce(queueName string, jobs <-chan string) {
 // queue and redirects then to the jobs channnel
 func (conn *Connection) Consume(queueName string, jobs chan<- amqp.Delivery) {
 
-	ch, err := conn.amqpConnection.Channel()
+	ch, err := conn.rabbitConnection.Channel()
 	rabbitbeans.FailOnError(err, "Failed to open a channel")
 	defer ch.Close() // Clean up by closing channel when function exits
 

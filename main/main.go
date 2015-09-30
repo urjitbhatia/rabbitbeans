@@ -57,7 +57,8 @@ func produceBeans(waitGroup sync.WaitGroup, jobs <-chan amqp.Delivery) {
 			"127.0.0.1",
 			"11300",
 		}
-		beans.InitAndPublishJobs(config, jobs)
+		beansConn := beans.Dial(config)
+		beansConn.Publish(jobs)
 	}()
 }
 
