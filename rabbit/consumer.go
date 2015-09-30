@@ -55,15 +55,9 @@ func InitAndListenQueue(config Config, jobs chan<- amqp.Delivery) {
 	)
 	rabbitbeans.FailOnError(err, "Failed to register a consumer")
 
-	forever := make(chan bool)
-
-	go func() {
-		for d := range msgs {
-			log.Printf("Received a message: %s", d.Body)
-			jobs <- d
-		}
-	}()
-
 	log.Printf(" [*] Waiting for rabbits. To exit press CTRL+C")
-	<-forever
+	for d := range msgs {
+		log.Printf("Received a message: %s", d.Body)
+		jobs <- d
+	}
 }
