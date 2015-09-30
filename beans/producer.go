@@ -29,6 +29,8 @@ type Config struct {
 type Bean struct {
 	Id   uint64
 	Body []byte
+	Ack  func()
+	Nack func()
 }
 
 // Connection captures the config used to connect to beanstalkd and
@@ -77,8 +79,15 @@ func (conn *Connection) Consume(jobs chan<- Bean) {
 				jobs <- Bean{
 					id,
 					body,
+					func() {
+					    log.Println("Job acked...")
+						conn.beansConnection.Delete(id)
+					},
+					func() {
+					    log.Println("Job nacked...")
+						conn.beansConnection.Release(id, 0, time.Second*1)
+					},
 				}
-				conn.beansConnection.Delete(id)
 			}
 		}
 	}()

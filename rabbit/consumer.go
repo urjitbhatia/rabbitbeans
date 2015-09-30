@@ -44,9 +44,16 @@ func (conn *Connection) Produce(queueName string, jobs <-chan beans.Bean) {
 	rabbitbeans.FailOnError(err, fmt.Sprintf("Failed to find queue named: %s", queueName))
 	log.Printf("Connected to queue: %s", q.Name)
 
+	if err := ch.Confirm(false); err != nil {
+		rabbitbeans.FailOnError(err, "Could not set channel confirm mode on")
+	}
+
+	// Buffer of 1 for our single outstanding publishing
+	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+
 	log.Printf(" [*] Sending rabbits. To exit press CTRL+C")
 	for d := range jobs {
-		log.Printf("Sending rabbit to queue: %s", d)
+		log.Printf("Sending rabbit to queue: %s", d.Body)
 		err = ch.Publish(
 			"",        // exchange
 			queueName, // routing key
@@ -56,6 +63,16 @@ func (conn *Connection) Produce(queueName string, jobs <-chan beans.Bean) {
 				ContentType: "text/plain",
 				Body:        []byte(d.Body),
 			})
+		if err != nil {
+			d.Nack()
+		} else {
+			// only ack the source delivery when the destination acks the publishing
+			if confirmed := <-confirms; confirmed.Ack {
+				d.Ack()
+			} else {
+				d.Nack()
+			}
+		}
 		rabbitbeans.FailOnError(err, fmt.Sprintf("Failed to find queue named: %s", queueName))
 	}
 }
