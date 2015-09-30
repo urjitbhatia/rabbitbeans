@@ -8,20 +8,30 @@ import (
 )
 
 func main() {
-    
-    // The channel that takes in rabbits (rabbit jobs) and delivers them to beans (beanstalkd)
+
+	// The channel that takes in rabbits (rabbit jobs) and delivers them to beans (beanstalkd)
 	jobs := make(chan amqp.Delivery)
 	var waitGroup sync.WaitGroup
+	waitGroup.Add(1)
+	consumeRabbits(waitGroup, jobs)
 
 	waitGroup.Add(1)
+	produceBeans(waitGroup, jobs)
+
+	waitGroup.Wait()
+}
+
+func consumeRabbits(waitGroup sync.WaitGroup, jobs chan amqp.Delivery) {
+	config := rabbit.Config{}
+	rabbitConn := rabbit.Dial(config)
+	queueName := "scheduler"
 	go func() {
 		defer waitGroup.Done()
-		config := rabbit.Config{}
-		config.QName = "scheduler"
-		rabbit.InitAndListenQueue(config, jobs)
+		rabbitConn.Consume(queueName, jobs)
 	}()
+}
 
-	waitGroup.Add(1)
+func produceBeans(waitGroup sync.WaitGroup, jobs <-chan amqp.Delivery) {
 	go func() {
 		defer waitGroup.Done()
 		config := beans.Config{
@@ -30,6 +40,19 @@ func main() {
 		}
 		beans.InitAndPublishJobs(config, jobs)
 	}()
+}
 
-	waitGroup.Wait()
+func produceRabbits(waitGroup sync.WaitGroup, jobs <-chan string) {
+	config := rabbit.Config{}
+	rabbitConn := rabbit.Dial(config)
+	queueName := "scheduler"
+	toSend := []string{"first produce", "second produce"}
+	sendChan := make(chan string)
+	go func() {
+		defer waitGroup.Done()
+		rabbitConn.Produce(queueName, sendChan)
+	}()
+	for _, ts := range toSend {
+		sendChan <- ts
+	}
 }
