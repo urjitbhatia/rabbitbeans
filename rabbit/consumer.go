@@ -1,6 +1,7 @@
 package rabbit
 
 import (
+	//	"errors"
 	"fmt"
 	"github.com/streadway/amqp"
 	"github.com/urjitbhatia/rabbitbeans"
@@ -26,15 +27,23 @@ type Config struct {
 // to multiplex multiple Producers and Consumers
 type Connection struct {
 	config           Config
-	rabbitConnection *amqp.Connection
+	rabbitConnection AmqpConnection
+}
+
+type AmqpConnection interface {
+	Channel() (interface{}, error)
 }
 
 // Produce connects to the rabbitMQ queue defined in the config
 // (if it does not exit, it will error). Then it pushes to messages on that
 // queue whenever it gets a new one on the jobs channel.
-func (conn *Connection) Produce(queueName string, jobs <-chan beans.Bean) {
+func (conn Connection) Produce(queueName string, jobs <-chan beans.Bean) {
 
-	ch, err := conn.rabbitConnection.Channel()
+	c, err := conn.rabbitConnection.Channel()
+	ch, ok := c.(*amqp.Channel)
+	if !ok {
+		log.Fatal("Fuck that shit")
+	}
 	rabbitbeans.FailOnError(err, "Failed to open a channel")
 	defer ch.Close() // Clean up by closing channel when function exits
 
@@ -82,9 +91,13 @@ func (conn *Connection) Produce(queueName string, jobs <-chan beans.Bean) {
 // Consume connects to the rabbitMQ queue defined in the config
 // (if it does not exit, it will error). Then it listens to messages on that
 // queue and redirects then to the jobs channnel
-func (conn *Connection) Consume(queueName string, jobs chan<- amqp.Delivery) {
+func (conn Connection) Consume(queueName string, jobs chan<- amqp.Delivery) {
 
-	ch, err := conn.rabbitConnection.Channel()
+	c, err := conn.rabbitConnection.Channel()
+	ch, ok := c.(*amqp.Channel)
+	if !ok {
+		log.Fatal("Fuck that shit")
+	}
 	rabbitbeans.FailOnError(err, "Failed to open a channel")
 	defer ch.Close() // Clean up by closing channel when function exits
 
@@ -97,7 +110,7 @@ func (conn *Connection) Consume(queueName string, jobs chan<- amqp.Delivery) {
 	msgs, err := ch.Consume(
 		q.Name, // queue
 		"",     // consumer
-		false,   // auto-ack
+		false,  // auto-ack
 		false,  // exclusive
 		false,  // no-local
 		false,  // no-wait
