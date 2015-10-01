@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"github.com/codegangsta/cli"
 	"github.com/streadway/amqp"
 	"github.com/urjitbhatia/rabbitbeans"
 	"github.com/urjitbhatia/rabbitbeans/beans"
@@ -11,6 +12,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 )
 
 type Config struct {
@@ -21,7 +23,7 @@ const (
 	defaultRabbitToBean = false
 )
 
-func main() {
+func service() {
 	config := configure()
 	// The channel that takes in rabbits (rabbit jobs) and delivers them to beans (beanstalkd)
 	var waitGroup sync.WaitGroup
@@ -29,24 +31,24 @@ func main() {
 		jobs := make(chan amqp.Delivery)
 
 		waitGroup.Add(1)
-		consumeRabbits(waitGroup, jobs)
+		ConsumeRabbits(waitGroup, jobs)
 
 		waitGroup.Add(1)
-		produceBeans(waitGroup, jobs)
+		ProduceBeans(waitGroup, jobs)
 	} else {
 		jobs := make(chan beans.Bean)
 
 		waitGroup.Add(1)
-		consumeBeans(waitGroup, jobs)
+		ConsumeBeans(waitGroup, jobs)
 
 		waitGroup.Add(1)
-		produceRabbits(waitGroup, jobs)
+		ProduceRabbits(waitGroup, jobs)
 	}
 
 	waitGroup.Wait()
 }
 
-func consumeRabbits(waitGroup sync.WaitGroup, jobs chan<- amqp.Delivery) {
+func ConsumeRabbits(waitGroup sync.WaitGroup, jobs chan<- amqp.Delivery) {
 	config := rabbit.Config{}
 	rabbitConn := rabbit.Dial(config)
 	queueName := "scheduler"
@@ -56,7 +58,7 @@ func consumeRabbits(waitGroup sync.WaitGroup, jobs chan<- amqp.Delivery) {
 	}()
 }
 
-func consumeBeans(waitGroup sync.WaitGroup, jobs chan<- beans.Bean) {
+func ConsumeBeans(waitGroup sync.WaitGroup, jobs chan<- beans.Bean) {
 	go func() {
 		defer waitGroup.Done()
 		config := beans.Config{
@@ -69,7 +71,7 @@ func consumeBeans(waitGroup sync.WaitGroup, jobs chan<- beans.Bean) {
 	}()
 }
 
-func produceBeans(waitGroup sync.WaitGroup, jobs <-chan amqp.Delivery) {
+func ProduceBeans(waitGroup sync.WaitGroup, jobs <-chan amqp.Delivery) {
 	go func() {
 		defer waitGroup.Done()
 		config := beans.Config{
@@ -82,7 +84,7 @@ func produceBeans(waitGroup sync.WaitGroup, jobs <-chan amqp.Delivery) {
 	}()
 }
 
-func produceRabbits(waitGroup sync.WaitGroup, jobs <-chan beans.Bean) {
+func ProduceRabbits(waitGroup sync.WaitGroup, jobs <-chan beans.Bean) {
 	config := rabbit.Config{}
 	rabbitConn := rabbit.Dial(config)
 	queueName := "scheduler"
@@ -108,4 +110,111 @@ func configure() Config {
 	}
 	log.Printf("Starting with config: %v", config)
 	return config
+}
+
+var totalTime int64 = 0
+var totalCount int64 = 0
+
+type MqMessage struct {
+	TimeNow        time.Time
+	SequenceNumber int
+	Payload        string
+}
+
+func main() {
+	app := cli.NewApp()
+	app.Name = "tester"
+	app.Usage = "Make the rabbit cry"
+	app.Flags = []cli.Flag{
+		cli.StringFlag{Name: "server, s", Value: "localhost", Usage: "Hostname for RabbitMQ server"},
+		cli.IntFlag{Name: "producer, p", Value: 0, Usage: "Number of messages to produce, -1 to produce forever"},
+		cli.IntFlag{Name: "wait, w", Value: 0, Usage: "Number of nanoseconds to wait between publish events"},
+		cli.IntFlag{Name: "consumer, c", Value: -1, Usage: "Number of messages to consume. 0 consumes forever"},
+		cli.IntFlag{Name: "bytes, b", Value: 0, Usage: "number of extra bytes to add to the RabbitMQ message payload. About 50K max"},
+		cli.IntFlag{Name: "concurrency, n", Value: 1, Usage: "number of reader/writer Goroutines"},
+		cli.BoolFlag{Name: "quiet, q", Usage: "Print only errors to stdout"},
+		cli.BoolFlag{Name: "wait-for-ack, a", Usage: "Wait for an ack or nack after enqueueing a message"},
+		cli.BoolFlag{Name: "testMode, t", Usage: "Run stress test mode. Runs as a service otherwise"},
+	}
+	app.Action = func(c *cli.Context) {
+		runApp(c)
+	}
+	app.Run(os.Args)
+}
+
+func runApp(c *cli.Context) {
+	println("Running!")
+	if !c.Bool("testMode") {
+		println("service mode")
+		service()
+	} else {
+		println("test mode")
+		uri := "amqp://guest:guest@" + c.String("server") + ":5672"
+		if c.Int("consumer") > -1 {
+			makeConsumers(uri, c.Int("concurrency"), c.Int("consumer"))
+		}
+
+		//	if c.Int("producer") != 0 {
+		//		makeProducers(c.Int("producer"), c.Int("wait"), c.Int("concurrency"))
+		//	}
+	}
+}
+
+func MakeQueue(c *amqp.Channel) amqp.Queue {
+	q, err2 := c.QueueDeclare("stress-test-exchange", true, false, false, false, nil)
+	if err2 != nil {
+		panic(err2)
+	}
+	return q
+}
+
+//func makeProducers(n int, wait int, concurrency int) {
+//
+//	taskChan := make(chan int)
+//	for i := 0; i < concurrency; i++ {
+//		go Produce(config, taskChan)
+//	}
+//
+//	start := time.Now()
+//
+//	for i := 0; i < n; i++ {
+//		taskChan <- i
+//		time.Sleep(time.Duration(int64(wait)))
+//	}
+//
+//	time.Sleep(time.Duration(10000))
+//
+//	close(taskChan)
+//
+//	log.Printf("Finished: %s", time.Since(start))
+//}
+
+func makeConsumers(uri string, concurrency int, toConsume int) {
+	println("Adding consumersss")
+	jobs := make(chan amqp.Delivery)
+	var waitGroup sync.WaitGroup
+	for i := 0; i < concurrency; i++ {
+		println("Adding consumer")
+		waitGroup.Add(1)
+		ConsumeRabbits(waitGroup, jobs)
+	}
+
+	start := time.Now()
+
+	if toConsume > 0 {
+		for i := 0; i < toConsume; i++ {
+			<-jobs
+			if i == 1 {
+				start = time.Now()
+			}
+			log.Println("Consumed: ", i)
+		}
+	} else {
+
+		for {
+			<-jobs
+		}
+	}
+	waitGroup.Wait()
+	log.Printf("Done consuming! %s", time.Since(start))
 }
