@@ -45,15 +45,27 @@ type Connection struct {
 func (conn *Connection) Publish(jobs <-chan amqp.Delivery) {
 
 	log.Printf(" [*] Publishing beans. To exit press CTRL+C")
-	for d := range jobs {
-		log.Printf("Received a message: %s", d.Body)
+	for job := range jobs {
+		log.Printf("Received a bean to create: %s", job.Body)
 		id, err := conn.beansConnection.Put(
-			d.Body, //body
-			0,      //pri uint32
-			0,      //delay
+			job.Body, //body
+			0,        //pri uint32
+			0,        //delay
 			10*60*time.Second, // TTR time to run -- is an integer number of seconds to allow a worker to run this job
 		)
-		rabbitbeans.LogOnError(err, fmt.Sprintf("Failed to put job on beanstalkd %s", d.Body))
+		rabbitbeans.LogOnError(err, fmt.Sprintf("Failed to put job on beanstalkd %s", job.Body))
+		if err != nil {
+			log.Println("nnnacking rabbit")
+			job.Nack(
+				false, // no multiple Nacks
+				true,  // do requeue
+			)
+		} else {
+			log.Println("acking rabbit")
+			job.Ack(
+				false, // no multiple Acks
+			)
+		}
 		fmt.Println("Created job", id)
 	}
 }
@@ -80,11 +92,11 @@ func (conn *Connection) Consume(jobs chan<- Bean) {
 					id,
 					body,
 					func() {
-					    log.Println("Job acked...")
+						log.Println("Job acked...")
 						conn.beansConnection.Delete(id)
 					},
 					func() {
-					    log.Println("Job nacked...")
+						log.Println("Job nacked...")
 						conn.beansConnection.Release(id, 0, time.Second*1)
 					},
 				}

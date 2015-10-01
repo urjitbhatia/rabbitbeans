@@ -44,7 +44,9 @@ func (conn *Connection) Produce(queueName string, jobs <-chan beans.Bean) {
 	rabbitbeans.FailOnError(err, fmt.Sprintf("Failed to find queue named: %s", queueName))
 	log.Printf("Connected to queue: %s", q.Name)
 
-	if err := ch.Confirm(false); err != nil {
+	if err := ch.Confirm(
+		false, // noWait = false - means, please do wait for confirms
+	); err != nil {
 		rabbitbeans.FailOnError(err, "Could not set channel confirm mode on")
 	}
 
@@ -52,8 +54,8 @@ func (conn *Connection) Produce(queueName string, jobs <-chan beans.Bean) {
 	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
 
 	log.Printf(" [*] Sending rabbits. To exit press CTRL+C")
-	for d := range jobs {
-		log.Printf("Sending rabbit to queue: %s", d.Body)
+	for job := range jobs {
+		log.Printf("Sending rabbit to queue: %s", job.Body)
 		err = ch.Publish(
 			"",        // exchange
 			queueName, // routing key
@@ -61,19 +63,19 @@ func (conn *Connection) Produce(queueName string, jobs <-chan beans.Bean) {
 			false,     // immediate
 			amqp.Publishing{
 				ContentType: "text/plain",
-				Body:        []byte(d.Body),
+				Body:        []byte(job.Body),
 			})
 		if err != nil {
-			d.Nack()
+			job.Nack()
 		} else {
 			// only ack the source delivery when the destination acks the publishing
 			if confirmed := <-confirms; confirmed.Ack {
-				d.Ack()
+				job.Ack()
 			} else {
-				d.Nack()
+				job.Nack()
 			}
+			rabbitbeans.FailOnError(err, fmt.Sprintf("Failed to find queue named: %s", queueName))
 		}
-		rabbitbeans.FailOnError(err, fmt.Sprintf("Failed to find queue named: %s", queueName))
 	}
 }
 
@@ -95,7 +97,7 @@ func (conn *Connection) Consume(queueName string, jobs chan<- amqp.Delivery) {
 	msgs, err := ch.Consume(
 		q.Name, // queue
 		"",     // consumer
-		true,   // auto-ack
+		false,   // auto-ack
 		false,  // exclusive
 		false,  // no-local
 		false,  // no-wait
