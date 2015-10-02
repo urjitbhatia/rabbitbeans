@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"github.com/streadway/amqp"
 	"github.com/urjitbhatia/rabbitbeans"
-	"github.com/urjitbhatia/rabbitbeans/beans"
 	"log"
+	"time"
 )
 
 const (
@@ -31,14 +31,26 @@ type Connection struct {
 }
 
 type RabbitHandler interface {
-	WriteToRabbit(queueName string, jobs <-chan beans.Bean)
-	ReadFromRabbit(queueName string, jobs chan<- amqp.Delivery)
+	WriteToRabbit(queueName string, jobs <-chan rabbitbeans.Job)
+	ReadFromRabbit(queueName string, jobs chan<- rabbitbeans.Job)
 }
 
-// Produce connects to the rabbitMQ queue defined in the config
+type RabbitAcknowledger struct {
+	d amqp.Delivery
+}
+
+func (r RabbitAcknowledger) Ack(id uint64) error {
+	return r.d.Ack(false)
+}
+
+func (r RabbitAcknowledger) Nack(id uint64) error {
+	return r.d.Nack(false, true)
+}
+
+// WriteToRabbit connects to the rabbitMQ queue defined in the config
 // (if it does not exit, it will error). Then it pushes to messages on that
 // queue whenever it gets a new one on the jobs channel.
-func (conn *Connection) WriteToRabbit(queueName string, jobs <-chan beans.Bean) {
+func (conn *Connection) WriteToRabbit(queueName string, jobs <-chan rabbitbeans.Job) {
 
 	ch, err := conn.rabbitConnection.Channel()
 	rabbitbeans.FailOnError(err, "Failed to open a channel")
@@ -62,7 +74,7 @@ func (conn *Connection) WriteToRabbit(queueName string, jobs <-chan beans.Bean) 
 	log.Printf(" [*] Sending rabbits. To exit press CTRL+C")
 	for job := range jobs {
 		if !conn.config.Quiet {
-			log.Printf("Sending rabbit to queue: %s", job.Body)
+			log.Printf("Sending rabbit to queue: %s", string(job.Body))
 		}
 		err = ch.Publish(
 			"",        // exchange
@@ -70,27 +82,27 @@ func (conn *Connection) WriteToRabbit(queueName string, jobs <-chan beans.Bean) 
 			false,     // mandatory
 			false,     // immediate
 			amqp.Publishing{
-				ContentType: "text/plain",
-				Body:        []byte(job.Body),
+				ContentType: job.ContentType,
+				Body:        job.Body,
 			})
 		if err != nil {
-			job.Nack()
+			job.Nack(job.Id)
 		} else {
 			// only ack the source delivery when the destination acks the publishing
 			if confirmed := <-confirms; confirmed.Ack {
-				job.Ack()
+				job.Ack(job.Id)
 			} else {
-				job.Nack()
+				job.Nack(job.Id)
 			}
 			rabbitbeans.FailOnError(err, fmt.Sprintf("Failed to find queue named: %s", queueName))
 		}
 	}
 }
 
-// Consume connects to the rabbitMQ queue defined in the config
+// ReadFromRabbit connects to the rabbitMQ queue defined in the config
 // (if it does not exit, it will error). Then it listens to messages on that
 // queue and redirects then to the jobs channnel
-func (conn *Connection) ReadFromRabbit(queueName string, jobs chan<- amqp.Delivery) {
+func (conn *Connection) ReadFromRabbit(queueName string, jobs chan<- rabbitbeans.Job) {
 
 	ch, err := conn.rabbitConnection.Channel()
 	rabbitbeans.FailOnError(err, "Failed to open a channel")
@@ -118,7 +130,19 @@ func (conn *Connection) ReadFromRabbit(queueName string, jobs chan<- amqp.Delive
 		if !conn.config.Quiet {
 			log.Printf("Received a rabbit from queue: %s", d.Body)
 		}
-		jobs <- d
+		job := &rabbitbeans.Job{
+			0,
+			d.Body,
+			//			d.Ack,
+			//			d.Nack,
+			RabbitAcknowledger{d},
+			d.ContentType,
+			uint32(d.Priority),
+			0,
+			time.Minute * 5, // TTR 5 minutes
+			"",
+		}
+		jobs <- *job
 	}
 }
 

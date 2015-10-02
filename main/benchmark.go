@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/codegangsta/cli"
-	"github.com/streadway/amqp"
+	"github.com/urjitbhatia/rabbitbeans"
 	"github.com/urjitbhatia/rabbitbeans/beans"
 	"github.com/urjitbhatia/rabbitbeans/rabbit"
 	"log"
@@ -22,6 +22,8 @@ func RunApp(c *cli.Context) {
 		}
 
 		if c.Int("BeanRead") > 0 {
+			// Write fake beans first, then read
+			beanWrite(c.Int("BeanRead"), 0, 1)
 			beanRead(c.Int("BeanRead"), c.Int("wait"), c.Int("concurrency"))
 		}
 
@@ -41,7 +43,7 @@ func RunApp(c *cli.Context) {
 func rabbitWrite(n, wait, concurrency int) {
 
 	log.Println("Testing rabbitWrites. Total rabbit writers:", concurrency)
-	messages := make(chan beans.Bean)
+	messages := make(chan rabbitbeans.Job)
 
 	var waitGroup sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
@@ -67,7 +69,7 @@ func rabbitWrite(n, wait, concurrency int) {
 func rabbitRead(n, wait, concurrency int) {
 
 	log.Println("Testing rabbitReads. Total rabbit readers:", concurrency)
-	messages := make(chan amqp.Delivery)
+	messages := make(chan rabbitbeans.Job)
 
 	var waitGroup sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
@@ -93,7 +95,7 @@ func rabbitRead(n, wait, concurrency int) {
 func beanWrite(n, wait, concurrency int) {
 
 	log.Println("Testing beanWrites. Total bean writers:", concurrency)
-	jobs := make(chan amqp.Delivery)
+	jobs := make(chan rabbitbeans.Job)
 	var waitGroup sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
 		println("Adding beanstalkd writer")
@@ -118,7 +120,7 @@ func beanWrite(n, wait, concurrency int) {
 func beanRead(n, wait, concurrency int) {
 
 	log.Println("Testing beanReads. Total bean readers:", concurrency)
-	jobs := make(chan beans.Bean)
+	jobs := make(chan rabbitbeans.Job)
 
 	var waitGroup sync.WaitGroup
 	for i := 0; i < concurrency; i++ {

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/codegangsta/cli"
-	"github.com/streadway/amqp"
 	"github.com/urjitbhatia/rabbitbeans"
 	"github.com/urjitbhatia/rabbitbeans/beans"
 	"github.com/urjitbhatia/rabbitbeans/rabbit"
@@ -27,7 +26,7 @@ func service() {
 	// The channel that takes in rabbits (rabbit jobs) and delivers them to beans (beanstalkd)
 	var waitGroup sync.WaitGroup
 	if config.RabbitToBean {
-		jobs := make(chan amqp.Delivery)
+		jobs := make(chan rabbitbeans.Job)
 
 		waitGroup.Add(1)
 		ReadFromRabbit(waitGroup, jobs)
@@ -35,7 +34,7 @@ func service() {
 		waitGroup.Add(1)
 		WriteToBeanstalkd(waitGroup, jobs)
 	} else {
-		jobs := make(chan beans.Bean)
+		jobs := make(chan rabbitbeans.Job)
 
 		waitGroup.Add(1)
 		ReadFromBeanstalkd(waitGroup, jobs)
@@ -47,7 +46,7 @@ func service() {
 	waitGroup.Wait()
 }
 
-func ReadFromRabbit(waitGroup sync.WaitGroup, jobs chan<- amqp.Delivery) {
+func ReadFromRabbit(waitGroup sync.WaitGroup, jobs chan<- rabbitbeans.Job) {
 	config := rabbit.Config{}
 	config.Quiet = true
 	rabbitConn := rabbit.Dial(config)
@@ -58,7 +57,7 @@ func ReadFromRabbit(waitGroup sync.WaitGroup, jobs chan<- amqp.Delivery) {
 	}()
 }
 
-func WriteToRabbit(waitGroup sync.WaitGroup, jobs <-chan beans.Bean) {
+func WriteToRabbit(waitGroup sync.WaitGroup, jobs <-chan rabbitbeans.Job) {
 	config := rabbit.Config{}
 	config.Quiet = true
 	rabbitConn := rabbit.Dial(config)
@@ -69,22 +68,22 @@ func WriteToRabbit(waitGroup sync.WaitGroup, jobs <-chan beans.Bean) {
 	}()
 }
 
-func ReadFromBeanstalkd(waitGroup sync.WaitGroup, jobs chan<- beans.Bean) {
+func ReadFromBeanstalkd(waitGroup sync.WaitGroup, jobs chan<- rabbitbeans.Job) {
 	go func() {
 		defer waitGroup.Done()
 		config := beans.Config{
 			"127.0.0.1",
 			"11300",
 			2,
-			true,
-			1000,
+			false,
+			20000,
 		}
 		beansConn := beans.Dial(config)
 		beansConn.ReadFromBeanstalkd(jobs)
 	}()
 }
 
-func WriteToBeanstalkd(waitGroup sync.WaitGroup, jobs <-chan amqp.Delivery) {
+func WriteToBeanstalkd(waitGroup sync.WaitGroup, jobs <-chan rabbitbeans.Job) {
 	go func() {
 		defer waitGroup.Done()
 		config := beans.Config{

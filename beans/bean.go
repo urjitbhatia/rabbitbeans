@@ -3,7 +3,6 @@ package beans
 import (
 	"fmt"
 	"github.com/kr/beanstalk"
-	"github.com/streadway/amqp"
 	"github.com/urjitbhatia/rabbitbeans"
 	"log"
 	"time"
@@ -27,14 +26,6 @@ type Config struct {
 	BatchSize    int    // the number of jobs to pull from beanstalkd per poll (if less jobs are ready, it defers to next poll)
 }
 
-// Bean captures a "job" from beanstalkd
-type Bean struct {
-	Id   uint64
-	Body []byte
-	Ack  func()
-	Nack func()
-}
-
 // Connection captures the config used to connect to beanstalkd and
 // the internal beanstalkd connection as well. This connection object can then be used
 // to multiplex multiple produce/consume actions
@@ -44,12 +35,12 @@ type Connection struct {
 }
 
 type BeanHandler interface {
-	WriteToBeanstalkd(<-chan amqp.Delivery)
-	ReadFromBeanstalkd(chan<- Bean)
+	WriteToBeanstalkd(<-chan rabbitbeans.Job)
+	ReadFromBeanstalkd(chan<- rabbitbeans.Job)
 }
 
 // Publish puts jobs onto beanstalkd. The jobs channel expects messages of type amqp.Delivery
-func (conn *Connection) WriteToBeanstalkd(jobs <-chan amqp.Delivery) {
+func (conn *Connection) WriteToBeanstalkd(jobs <-chan rabbitbeans.Job) {
 
 	log.Printf(" [*] Publishing beans. To exit press CTRL+C")
 	for job := range jobs {
@@ -57,21 +48,16 @@ func (conn *Connection) WriteToBeanstalkd(jobs <-chan amqp.Delivery) {
 			log.Printf("Received a bean to create: %s", job.Body)
 		}
 		id, err := conn.beansConnection.Put(
-			job.Body, //body
-			0,        //pri uint32
-			0,        //delay
-			10*60*time.Second, // TTR time to run -- is an integer number of seconds to allow a worker to run this job
+			job.Body,     //body
+			job.Priority, //pri uint32
+			job.Delay,    //delay
+			job.TTR,      // TTR time to run -- is an integer number of seconds to allow a worker to run this job
 		)
 		rabbitbeans.LogOnError(err, fmt.Sprintf("Failed to put job on beanstalkd %s", job.Body))
 		if err != nil {
-			job.Nack(
-				false, // no multiple Nacks
-				true,  // do requeue
-			)
+			job.Nack(id)
 		} else {
-			job.Ack(
-				false, // no multiple Acks
-			)
+			job.Ack(id)
 		}
 		if !conn.config.Quiet {
 			fmt.Println("Created job", id)
@@ -80,7 +66,7 @@ func (conn *Connection) WriteToBeanstalkd(jobs <-chan amqp.Delivery) {
 }
 
 // Consumes jobs off of beanstalkd. The jobs channel posts messages of type beans.Bean
-func (conn *Connection) ReadFromBeanstalkd(jobs chan<- Bean) {
+func (conn *Connection) ReadFromBeanstalkd(jobs chan<- rabbitbeans.Job) {
 
 	log.Printf(" [*] Consuming beans. To exit press CTRL+C")
 
@@ -92,6 +78,7 @@ func (conn *Connection) ReadFromBeanstalkd(jobs chan<- Bean) {
 				log.Printf("Polling beanstalkd for beans")
 				var i = 0
 				for {
+					log.Printf("bean read")
 					id, body, err := conn.beansConnection.Reserve(5 * time.Second)
 					if cerr, ok := err.(beanstalk.ConnError); !ok {
 						rabbitbeans.FailOnError(err, "expected connError")
@@ -103,25 +90,36 @@ func (conn *Connection) ReadFromBeanstalkd(jobs chan<- Bean) {
 					if !conn.config.Quiet {
 						log.Printf("Reserved job %v %s", id, body)
 					}
-					jobs <- Bean{
+					jobs <- rabbitbeans.Job{
 						id,
 						body,
-						func() {
-							conn.beansConnection.Delete(id)
-						},
-						func() {
-							conn.beansConnection.Release(id, 0, time.Second*1)
-						},
+						conn,
+						"application/json",
+						0,
+						0,
+						0,
+						"",
 					}
+					log.Printf("bean dispatched")
 					i++
 					if i == conn.config.BatchSize {
-					    break
+						break
 					}
 				}
 				log.Printf("Processed %d jobs this tick", i)
 			}
 		}
 	}()
+}
+
+// Implements the Acknowledger interface Ack
+func (c *Connection) Ack(id uint64) error {
+	return c.beansConnection.Delete(id)
+}
+
+// Implements the Acknowledger interface Nack
+func (c *Connection) Nack(id uint64) error {
+	return c.beansConnection.Release(id, 0, time.Second*2)
 }
 
 // Dial connects to a beanstalkd instance.

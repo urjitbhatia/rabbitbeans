@@ -1,8 +1,7 @@
 package rabbit
 
 import (
-	"github.com/streadway/amqp"
-	"github.com/urjitbhatia/rabbitbeans/beans"
+	"github.com/urjitbhatia/rabbitbeans"
 	"log"
 	"time"
 )
@@ -12,16 +11,25 @@ type TestRabbitHandler struct {
 	WaitPerRabbit int
 }
 
-func (*TestRabbitHandler) WriteToRabbit(c <-chan beans.Bean) {
-	job := <-c
-	job.Ack()
+type FakeBeanstalkdAcknowledger struct{}
+
+func (FakeBeanstalkdAcknowledger) Ack(id uint64) error  { return nil }
+func (FakeBeanstalkdAcknowledger) Nack(id uint64) error { return nil }
+
+func (me *TestRabbitHandler) WriteToRabbit(c <-chan rabbitbeans.Job) {
+	for n := 0; n < me.NumToProduce; n++ {
+		job := <-c
+		job.Ack(job.Id)
+	}
 }
-func (me *TestRabbitHandler) ReadFromRabbit(c chan<- amqp.Delivery) {
+func (me *TestRabbitHandler) ReadFromRabbit(c chan<- rabbitbeans.Job) {
 
 	log.Println("Waiting for", me.WaitPerRabbit)
 	for i := 0; i < me.NumToProduce; i++ {
-		d := amqp.Delivery{}
+		d := rabbitbeans.Job{}
 		d.Body = []byte("test rabbit")
+		d.Acknowledger = &FakeBeanstalkdAcknowledger{}
+		d.TTR = 10
 		c <- d
 		time.Sleep(time.Duration(me.WaitPerRabbit) * time.Millisecond)
 	}
