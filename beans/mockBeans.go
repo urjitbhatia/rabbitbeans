@@ -11,10 +11,10 @@ type TestBeanHandler struct {
 	WaitPerBean  int
 }
 
-func (*TestBeanHandler) Publish(c <-chan amqp.Delivery) {
+func (*TestBeanHandler) WriteToBeanstalkd(c <-chan amqp.Delivery) {
 	<-c
 }
-func (me *TestBeanHandler) Consume(c chan<- Bean) {
+func (me *TestBeanHandler) ReadFromBeanstalkd(c chan<- Bean) {
 
 	log.Println("Waiting for", me.WaitPerBean)
 	for i := 0; i < me.NumToProduce; i++ {

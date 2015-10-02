@@ -12,10 +12,10 @@ type TestRabbitHandler struct {
 	WaitPerRabbit int
 }
 
-func (*TestRabbitHandler) Publish(c <-chan beans.Bean) {
+func (*TestRabbitHandler) WriteToRabbit(c <-chan beans.Bean) {
 	<-c
 }
-func (me *TestRabbitHandler) Consume(c chan<- amqp.Delivery) {
+func (me *TestRabbitHandler) ReadFromRabbit(c chan<- amqp.Delivery) {
 
 	log.Println("Waiting for", me.WaitPerRabbit)
 	for i := 0; i < me.NumToProduce; i++ {

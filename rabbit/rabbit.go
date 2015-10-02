@@ -31,14 +31,14 @@ type Connection struct {
 }
 
 type RabbitHandler interface {
-	Produce(queueName string, jobs <-chan beans.Bean)
-	Consume(queueName string, jobs chan<- amqp.Delivery)
+	WriteToRabbit(queueName string, jobs <-chan beans.Bean)
+	ReadFromRabbit(queueName string, jobs chan<- amqp.Delivery)
 }
 
 // Produce connects to the rabbitMQ queue defined in the config
 // (if it does not exit, it will error). Then it pushes to messages on that
 // queue whenever it gets a new one on the jobs channel.
-func (conn *Connection) Produce(queueName string, jobs <-chan beans.Bean) {
+func (conn *Connection) WriteToRabbit(queueName string, jobs <-chan beans.Bean) {
 
 	ch, err := conn.rabbitConnection.Channel()
 	rabbitbeans.FailOnError(err, "Failed to open a channel")
@@ -90,7 +90,7 @@ func (conn *Connection) Produce(queueName string, jobs <-chan beans.Bean) {
 // Consume connects to the rabbitMQ queue defined in the config
 // (if it does not exit, it will error). Then it listens to messages on that
 // queue and redirects then to the jobs channnel
-func (conn *Connection) Consume(queueName string, jobs chan<- amqp.Delivery) {
+func (conn *Connection) ReadFromRabbit(queueName string, jobs chan<- amqp.Delivery) {
 
 	ch, err := conn.rabbitConnection.Channel()
 	rabbitbeans.FailOnError(err, "Failed to open a channel")

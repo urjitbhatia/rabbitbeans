@@ -43,12 +43,12 @@ type Connection struct {
 }
 
 type BeanHandler interface {
-	Publish(<-chan amqp.Delivery)
-	Consume(chan<- Bean)
+	WriteToBeanstalkd(<-chan amqp.Delivery)
+	ReadFromBeanstalkd(chan<- Bean)
 }
 
 // Publish puts jobs onto beanstalkd. The jobs channel expects messages of type amqp.Delivery
-func (conn *Connection) Publish(jobs <-chan amqp.Delivery) {
+func (conn *Connection) WriteToBeanstalkd(jobs <-chan amqp.Delivery) {
 
 	log.Printf(" [*] Publishing beans. To exit press CTRL+C")
 	for job := range jobs {
@@ -79,7 +79,7 @@ func (conn *Connection) Publish(jobs <-chan amqp.Delivery) {
 }
 
 // Consumes jobs off of beanstalkd. The jobs channel posts messages of type beans.Bean
-func (conn *Connection) Consume(jobs chan<- Bean) {
+func (conn *Connection) ReadFromBeanstalkd(jobs chan<- Bean) {
 
 	log.Printf(" [*] Consuming beans. To exit press CTRL+C")
 

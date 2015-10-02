@@ -36,12 +36,12 @@ func beanToRabbit(n, wait, concurrency int) {
 	for i := 0; i < concurrency; i++ {
 		log.Println("Adding producer:", i)
 		waitGroup.Add(1)
-		ProduceRabbits(waitGroup, jobs)
+		WriteToRabbit(waitGroup, jobs)
 	}
 
 	testBeans := &beans.TestBeanHandler{n, wait}
 	start := time.Now()
-	testBeans.Consume(jobs)
+	testBeans.ReadFromBeanstalkd(jobs)
 	waitGroup.Done() // force close ProduceRabbits
 	waitGroup.Wait()
 
@@ -57,12 +57,12 @@ func rabbitToBeans(n, wait, concurrency int) {
 	for i := 0; i < concurrency; i++ {
 		println("Adding consumer")
 		waitGroup.Add(1)
-		ProduceBeans(waitGroup, jobs)
+		WriteToBeanstalkd(waitGroup, jobs)
 	}
 
 	testRabbits := &rabbit.TestRabbitHandler{n, wait}
 	start := time.Now()
-	testRabbits.Consume(jobs)
+	testRabbits.ReadFromRabbit(jobs)
 	waitGroup.Done() // force close ConsumeBeans
 	waitGroup.Wait()
 

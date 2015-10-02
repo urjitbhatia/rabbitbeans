@@ -30,46 +30,46 @@ func service() {
 		jobs := make(chan amqp.Delivery)
 
 		waitGroup.Add(1)
-		ConsumeRabbits(waitGroup, jobs)
+		ReadFromRabbit(waitGroup, jobs)
 
 		waitGroup.Add(1)
-		ProduceBeans(waitGroup, jobs)
+		WriteToBeanstalkd(waitGroup, jobs)
 	} else {
 		jobs := make(chan beans.Bean)
 
 		waitGroup.Add(1)
-		ConsumeBeans(waitGroup, jobs)
+		ReadFromBeanstalkd(waitGroup, jobs)
 
 		waitGroup.Add(1)
-		ProduceRabbits(waitGroup, jobs)
+		WriteToRabbit(waitGroup, jobs)
 	}
 
 	waitGroup.Wait()
 }
 
-func ConsumeRabbits(waitGroup sync.WaitGroup, jobs chan<- amqp.Delivery) {
+func ReadFromRabbit(waitGroup sync.WaitGroup, jobs chan<- amqp.Delivery) {
 	config := rabbit.Config{}
 	config.Quiet = true
 	rabbitConn := rabbit.Dial(config)
 	queueName := "scheduler"
 	go func() {
 		defer waitGroup.Done()
-		rabbitConn.Consume(queueName, jobs)
+		rabbitConn.ReadFromRabbit(queueName, jobs)
 	}()
 }
 
-func ProduceRabbits(waitGroup sync.WaitGroup, jobs <-chan beans.Bean) {
+func WriteToRabbit(waitGroup sync.WaitGroup, jobs <-chan beans.Bean) {
 	config := rabbit.Config{}
 	config.Quiet = true
 	rabbitConn := rabbit.Dial(config)
 	queueName := "scheduler"
 	go func() {
 		defer waitGroup.Done()
-		rabbitConn.Produce(queueName, jobs)
+		rabbitConn.WriteToRabbit(queueName, jobs)
 	}()
 }
 
-func ConsumeBeans(waitGroup sync.WaitGroup, jobs chan<- beans.Bean) {
+func ReadFromBeanstalkd(waitGroup sync.WaitGroup, jobs chan<- beans.Bean) {
 	go func() {
 		defer waitGroup.Done()
 		config := beans.Config{
@@ -79,11 +79,11 @@ func ConsumeBeans(waitGroup sync.WaitGroup, jobs chan<- beans.Bean) {
 			true,
 		}
 		beansConn := beans.Dial(config)
-		beansConn.Consume(jobs)
+		beansConn.ReadFromBeanstalkd(jobs)
 	}()
 }
 
-func ProduceBeans(waitGroup sync.WaitGroup, jobs <-chan amqp.Delivery) {
+func WriteToBeanstalkd(waitGroup sync.WaitGroup, jobs <-chan amqp.Delivery) {
 	go func() {
 		defer waitGroup.Done()
 		config := beans.Config{
@@ -93,7 +93,7 @@ func ProduceBeans(waitGroup sync.WaitGroup, jobs <-chan amqp.Delivery) {
 			true,
 		}
 		beansConn := beans.Dial(config)
-		beansConn.Publish(jobs)
+		beansConn.WriteToBeanstalkd(jobs)
 	}()
 }
 
