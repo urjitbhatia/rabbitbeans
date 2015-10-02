@@ -121,10 +121,10 @@ func main() {
 	app.Usage = "Make the rabbit cry"
 	app.Flags = []cli.Flag{
 		cli.StringFlag{Name: "server, s", Value: "localhost", Usage: "Hostname for RabbitMQ server"},
-		cli.IntFlag{Name: "beanToRabbit, b", Value: 0, Usage: "Number of messages to send from Mock beanstalkd to Rabbit"},
-		cli.IntFlag{Name: "revBeanToRabbit, bb", Value: 0, Usage: "Number of messages to send from Mock beanstalkd to Rabbit"},
-		cli.IntFlag{Name: "rabbitToBeans, r", Value: 0, Usage: "Number of messages to send from mock rabbit to beanstalkd"},
-		cli.IntFlag{Name: "revRabbitToBeans, rr", Value: 0, Usage: "Number of messages to send from mock rabbit to beanstalkd"},
+		cli.IntFlag{Name: "RabbitWrite, rw", Value: 0, Usage: "Number of messages to send from Mock beanstalkd to Rabbit"},
+		cli.IntFlag{Name: "RabbitRead, rr", Value: 0, Usage: "Number of messages to send from Mock beanstalkd to Rabbit"},
+		cli.IntFlag{Name: "BeanWrite, bw", Value: 0, Usage: "Number of messages to send from mock rabbit to beanstalkd"},
+		cli.IntFlag{Name: "BeanRead, br", Value: 0, Usage: "Number of messages to send from mock rabbit to beanstalkd"},
 		cli.IntFlag{Name: "concurrency, c", Value: 1, Usage: "number of beanToRabbit/rabbitToBeans Goroutines"},
 		cli.IntFlag{Name: "wait, w", Value: 0, Usage: "Number of milliseconds to wait between publish events"},
 		//		cli.IntFlag{Name: "bytes, b", Value: 0, Usage: "number of extra bytes to add to the RabbitMQ message payload. About 50K max"},

@@ -13,7 +13,8 @@ type TestRabbitHandler struct {
 }
 
 func (*TestRabbitHandler) WriteToRabbit(c <-chan beans.Bean) {
-	<-c
+	job := <-c
+	job.Ack()
 }
 func (me *TestRabbitHandler) ReadFromRabbit(c chan<- amqp.Delivery) {
 

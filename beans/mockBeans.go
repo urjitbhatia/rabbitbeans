@@ -11,8 +11,13 @@ type TestBeanHandler struct {
 	WaitPerBean  int
 }
 
-func (*TestBeanHandler) WriteToBeanstalkd(c <-chan amqp.Delivery) {
-	<-c
+func (me *TestBeanHandler) WriteToBeanstalkd(c <-chan amqp.Delivery) {
+	for n := 0; n < me.NumToProduce; n++ {
+		msg := <-c
+		msg.Ack(
+			false, // no multiple Acks
+		)
+	}
 }
 func (me *TestBeanHandler) ReadFromBeanstalkd(c chan<- Bean) {
 
