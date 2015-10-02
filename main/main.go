@@ -77,6 +77,7 @@ func ReadFromBeanstalkd(waitGroup sync.WaitGroup, jobs chan<- beans.Bean) {
 			"11300",
 			2,
 			true,
+			1000,
 		}
 		beansConn := beans.Dial(config)
 		beansConn.ReadFromBeanstalkd(jobs)
@@ -91,6 +92,7 @@ func WriteToBeanstalkd(waitGroup sync.WaitGroup, jobs <-chan amqp.Delivery) {
 			"11300",
 			0,
 			true,
+			1000,
 		}
 		beansConn := beans.Dial(config)
 		beansConn.WriteToBeanstalkd(jobs)

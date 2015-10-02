@@ -20,10 +20,11 @@ const (
 // Host points to beanstalkd host
 // Port points to the port beanstalkd host is listening on
 type Config struct {
-	Host         string
-	Port         string
-	TickInterval int
-	Quiet        bool
+	Host         string // the beanstalkd host
+	Port         string // the beanstalkd host port
+	TickInterval int    // the time to wait between successive polls of beanstalkd
+	Quiet        bool   // quiet logs
+	BatchSize    int    // the number of jobs to pull from beanstalkd per poll (if less jobs are ready, it defers to next poll)
 }
 
 // Bean captures a "job" from beanstalkd
@@ -89,25 +90,35 @@ func (conn *Connection) ReadFromBeanstalkd(jobs chan<- Bean) {
 			select {
 			case <-ticker.C:
 				log.Printf("Polling beanstalkd for beans")
-				id, body, err := conn.beansConnection.Reserve(5 * time.Second)
-				if cerr, ok := err.(beanstalk.ConnError); !ok {
-					rabbitbeans.FailOnError(err, "expected connError")
-				} else if cerr.Err != beanstalk.ErrTimeout {
-					rabbitbeans.FailOnError(err, "expected timeout on reserve")
+				var i = 0
+				for {
+					id, body, err := conn.beansConnection.Reserve(5 * time.Second)
+					if cerr, ok := err.(beanstalk.ConnError); !ok {
+						rabbitbeans.FailOnError(err, "expected connError")
+					} else if cerr.Err != beanstalk.ErrTimeout {
+						rabbitbeans.FailOnError(err, "expected timeout on reserve")
+					} else {
+						break
+					}
+					if !conn.config.Quiet {
+						log.Printf("Reserved job %v %s", id, body)
+					}
+					jobs <- Bean{
+						id,
+						body,
+						func() {
+							conn.beansConnection.Delete(id)
+						},
+						func() {
+							conn.beansConnection.Release(id, 0, time.Second*1)
+						},
+					}
+					i++
+					if i == conn.config.BatchSize {
+					    break
+					}
 				}
-				if !conn.config.Quiet {
-					log.Printf("Reserved job %v %s", id, body)
-				}
-				jobs <- Bean{
-					id,
-					body,
-					func() {
-						conn.beansConnection.Delete(id)
-					},
-					func() {
-						conn.beansConnection.Release(id, 0, time.Second*1)
-					},
-				}
+				log.Printf("Processed %d jobs this tick", i)
 			}
 		}
 	}()
