@@ -139,7 +139,7 @@ func (conn *Connection) ReadFromRabbit(queueName string, jobs chan<- rabbitbeans
 			d.ContentType,
 			uint32(d.Priority),
 			0,
-			time.Minute * 5, // TTR 5 minutes
+			time.Minute * 50, // TTR 50 minutes
 			"",
 		}
 		jobs <- *job
