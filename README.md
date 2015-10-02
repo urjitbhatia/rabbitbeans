@@ -2,6 +2,8 @@
 A simple router to consume messages from rabbitmq and push to beanstalkd and vice-versa.
 It can connect to a remote/local beanstalkd/rabbitmq based on the configuration.
 
+[![GoDoc](https://godoc.org/github.com/urjitbhatia/rabbitbeans?status.svg)](https://godoc.org/github.com/urjitbhatia/rabbitbeans)
+
 # design goals
 
 - Beanstalkd provides a nice way of scheduling jobs (with delays, TTR semantics etc) while RabbitMQ provides a HA queuing system that is distributed, fault tolerant, high performance, and persistent store for job payloads.
