@@ -49,11 +49,23 @@ func service() {
 
 func ConsumeRabbits(waitGroup sync.WaitGroup, jobs chan<- amqp.Delivery) {
 	config := rabbit.Config{}
+	config.Quiet = true
 	rabbitConn := rabbit.Dial(config)
 	queueName := "scheduler"
 	go func() {
 		defer waitGroup.Done()
 		rabbitConn.Consume(queueName, jobs)
+	}()
+}
+
+func ProduceRabbits(waitGroup sync.WaitGroup, jobs <-chan beans.Bean) {
+	config := rabbit.Config{}
+	config.Quiet = true
+	rabbitConn := rabbit.Dial(config)
+	queueName := "scheduler"
+	go func() {
+		defer waitGroup.Done()
+		rabbitConn.Produce(queueName, jobs)
 	}()
 }
 
@@ -64,6 +76,7 @@ func ConsumeBeans(waitGroup sync.WaitGroup, jobs chan<- beans.Bean) {
 			"127.0.0.1",
 			"11300",
 			2,
+			true,
 		}
 		beansConn := beans.Dial(config)
 		beansConn.Consume(jobs)
@@ -77,19 +90,10 @@ func ProduceBeans(waitGroup sync.WaitGroup, jobs <-chan amqp.Delivery) {
 			"127.0.0.1",
 			"11300",
 			0,
+			true,
 		}
 		beansConn := beans.Dial(config)
 		beansConn.Publish(jobs)
-	}()
-}
-
-func ProduceRabbits(waitGroup sync.WaitGroup, jobs <-chan beans.Bean) {
-	config := rabbit.Config{}
-	rabbitConn := rabbit.Dial(config)
-	queueName := "scheduler"
-	go func() {
-		defer waitGroup.Done()
-		rabbitConn.Produce(queueName, jobs)
 	}()
 }
 
@@ -119,11 +123,11 @@ func main() {
 		cli.StringFlag{Name: "server, s", Value: "localhost", Usage: "Hostname for RabbitMQ server"},
 		cli.IntFlag{Name: "beanToRabbit, b", Value: 0, Usage: "Number of messages to send from Mock beanstalkd to Rabbit"},
 		cli.IntFlag{Name: "rabbitToBeans, r", Value: 0, Usage: "Number of messages to send from mock rabbit to beanstalkd"},
-		cli.IntFlag{Name: "concurrency, n", Value: 1, Usage: "number of beanToRabbit/rabbitToBeans Goroutines"},
+		cli.IntFlag{Name: "concurrency, c", Value: 1, Usage: "number of beanToRabbit/rabbitToBeans Goroutines"},
 		cli.IntFlag{Name: "wait, w", Value: 0, Usage: "Number of milliseconds to wait between publish events"},
 		//		cli.IntFlag{Name: "bytes, b", Value: 0, Usage: "number of extra bytes to add to the RabbitMQ message payload. About 50K max"},
 		//		cli.BoolFlag{Name: "quiet, q", Usage: "Print only errors to stdout"},
-		cli.BoolFlag{Name: "testMode, t", Usage: "Run stress test mode. Runs as a service otherwise"},
+		cli.BoolFlag{Name: "testMode, t", Usage: "Run stress test mode. Runs as a service otherwise (default)"},
 	}
 	app.Action = func(c *cli.Context) {
 		RunApp(c)

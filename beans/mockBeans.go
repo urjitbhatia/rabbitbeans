@@ -15,17 +15,17 @@ func (*TestBeanHandler) Publish(c <-chan amqp.Delivery) {
 	<-c
 }
 func (me *TestBeanHandler) Consume(c chan<- Bean) {
+
+	log.Println("Waiting for", me.WaitPerBean)
 	for i := 0; i < me.NumToProduce; i++ {
 		c <- Bean{
 			uint64(i),
 			[]byte("test bean"),
 			func() {
-				log.Println("Job acked...")
 			},
 			func() {
-				log.Println("Job nacked...")
 			},
 		}
-		time.Sleep(time.Duration(1000) * time.Millisecond)
+		time.Sleep(time.Duration(me.WaitPerBean) * time.Millisecond)
 	}
 }

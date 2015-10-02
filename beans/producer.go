@@ -23,6 +23,7 @@ type Config struct {
 	Host         string
 	Port         string
 	TickInterval int
+	Quiet        bool
 }
 
 // Bean captures a "job" from beanstalkd
@@ -51,7 +52,9 @@ func (conn *Connection) Publish(jobs <-chan amqp.Delivery) {
 
 	log.Printf(" [*] Publishing beans. To exit press CTRL+C")
 	for job := range jobs {
-		log.Printf("Received a bean to create: %s", job.Body)
+		if !conn.config.Quiet {
+			log.Printf("Received a bean to create: %s", job.Body)
+		}
 		id, err := conn.beansConnection.Put(
 			job.Body, //body
 			0,        //pri uint32
@@ -60,18 +63,18 @@ func (conn *Connection) Publish(jobs <-chan amqp.Delivery) {
 		)
 		rabbitbeans.LogOnError(err, fmt.Sprintf("Failed to put job on beanstalkd %s", job.Body))
 		if err != nil {
-			log.Println("nnnacking rabbit")
 			job.Nack(
 				false, // no multiple Nacks
 				true,  // do requeue
 			)
 		} else {
-			log.Println("acking rabbit")
 			job.Ack(
 				false, // no multiple Acks
 			)
 		}
-		fmt.Println("Created job", id)
+		if !conn.config.Quiet {
+			fmt.Println("Created job", id)
+		}
 	}
 }
 
@@ -92,16 +95,16 @@ func (conn *Connection) Consume(jobs chan<- Bean) {
 				} else if cerr.Err != beanstalk.ErrTimeout {
 					rabbitbeans.FailOnError(err, "expected timeout on reserve")
 				}
-				log.Printf("Reserved job %v %s", id, body)
+				if !conn.config.Quiet {
+					log.Printf("Reserved job %v %s", id, body)
+				}
 				jobs <- Bean{
 					id,
 					body,
 					func() {
-						log.Println("Job acked...")
 						conn.beansConnection.Delete(id)
 					},
 					func() {
-						log.Println("Job nacked...")
 						conn.beansConnection.Release(id, 0, time.Second*1)
 					},
 				}

@@ -4,6 +4,7 @@ import (
 	"github.com/codegangsta/cli"
 	"github.com/streadway/amqp"
 	"github.com/urjitbhatia/rabbitbeans/beans"
+	"github.com/urjitbhatia/rabbitbeans/rabbit"
 	"log"
 	"sync"
 	"time"
@@ -16,9 +17,8 @@ func RunApp(c *cli.Context) {
 		service()
 	} else {
 		println("test mode")
-		uri := "amqp://guest:guest@" + c.String("server") + ":5672"
 		if c.Int("rabbitToBeans") > 0 {
-			rabbitToBeans(uri, c.Int("concurrency"), c.Int("consumer"))
+			rabbitToBeans(c.Int("rabbitToBeans"), c.Int("wait"), c.Int("concurrency"))
 		}
 
 		if c.Int("beanToRabbit") > 0 {
@@ -27,49 +27,45 @@ func RunApp(c *cli.Context) {
 	}
 }
 
-func beanToRabbit(n int, wait int, concurrency int) {
+func beanToRabbit(n, wait, concurrency int) {
 
-	println("Adding producers")
+	log.Println("Testing BeanToRabbit mode. Total rabbit writers:", concurrency)
 	jobs := make(chan beans.Bean)
+
 	var waitGroup sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
-		println("Adding producer")
+		log.Println("Adding producer:", i)
 		waitGroup.Add(1)
 		ProduceRabbits(waitGroup, jobs)
 	}
-	start := time.Now()
+
 	testBeans := &beans.TestBeanHandler{n, wait}
+	start := time.Now()
 	testBeans.Consume(jobs)
 	waitGroup.Done() // force close ProduceRabbits
 	waitGroup.Wait()
-	log.Printf("Done consuming! %s", time.Since(start))
+
+	elapsed := time.Since(start)
+	log.Printf("Done consuming! %s. Total messages: %d", elapsed, n)
 }
 
-func rabbitToBeans(uri string, concurrency int, toConsume int) {
-	println("Adding consumersss")
+func rabbitToBeans(n, wait, concurrency int) {
+
+	log.Println("Testing RabbitToBean mode. Total bean writers:", concurrency)
 	jobs := make(chan amqp.Delivery)
 	var waitGroup sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
 		println("Adding consumer")
 		waitGroup.Add(1)
-		ConsumeRabbits(waitGroup, jobs)
+		ProduceBeans(waitGroup, jobs)
 	}
+
+	testRabbits := &rabbit.TestRabbitHandler{n, wait}
 	start := time.Now()
-
-	if toConsume > 0 {
-		for i := 0; i < toConsume; i++ {
-			<-jobs
-			if i == 1 {
-				start = time.Now()
-			}
-			log.Println("Consumed: ", i)
-		}
-	} else {
-
-		for {
-			<-jobs
-		}
-	}
+	testRabbits.Consume(jobs)
+	waitGroup.Done() // force close ConsumeBeans
 	waitGroup.Wait()
-	log.Printf("Done consuming! %s", time.Since(start))
+
+	elapsed := time.Since(start)
+	log.Printf("Done consuming! %s. Total messages: %d", elapsed, n)
 }

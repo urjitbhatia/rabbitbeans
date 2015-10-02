@@ -19,6 +19,7 @@ const (
 type Config struct {
 	AmqpUrl    string      // amqp host url
 	AmqpConfig amqp.Config // amqp config
+	Quiet      bool
 }
 
 // Connection captures the config used to connect to rabbitMq and
@@ -27,6 +28,11 @@ type Config struct {
 type Connection struct {
 	config           Config
 	rabbitConnection *amqp.Connection
+}
+
+type RabbitHandler interface {
+	Produce(queueName string, jobs <-chan beans.Bean)
+	Consume(queueName string, jobs chan<- amqp.Delivery)
 }
 
 // Produce connects to the rabbitMQ queue defined in the config
@@ -55,7 +61,9 @@ func (conn *Connection) Produce(queueName string, jobs <-chan beans.Bean) {
 
 	log.Printf(" [*] Sending rabbits. To exit press CTRL+C")
 	for job := range jobs {
-		log.Printf("Sending rabbit to queue: %s", job.Body)
+		if !conn.config.Quiet {
+			log.Printf("Sending rabbit to queue: %s", job.Body)
+		}
 		err = ch.Publish(
 			"",        // exchange
 			queueName, // routing key
@@ -97,7 +105,7 @@ func (conn *Connection) Consume(queueName string, jobs chan<- amqp.Delivery) {
 	msgs, err := ch.Consume(
 		q.Name, // queue
 		"",     // consumer
-		false,   // auto-ack
+		false,  // auto-ack
 		false,  // exclusive
 		false,  // no-local
 		false,  // no-wait
@@ -107,14 +115,16 @@ func (conn *Connection) Consume(queueName string, jobs chan<- amqp.Delivery) {
 
 	log.Printf(" [*] Waiting for rabbits. To exit press CTRL+C")
 	for d := range msgs {
-		log.Printf("Received a rabbit from queue: %s", d.Body)
+		if !conn.config.Quiet {
+			log.Printf("Received a rabbit from queue: %s", d.Body)
+		}
 		jobs <- d
 	}
 }
 
 // Dial connects to an amqp URL where it expects a rabbitMQ instance to be running.
 // Returns a multiplexable connection that can then be used to produce/consume on different queues
-func Dial(config Config) *Connection {
+func Dial(config Config) RabbitHandler {
 
 	if config.AmqpUrl == "" {
 		config.AmqpUrl = LocalhostAmqpUrl
