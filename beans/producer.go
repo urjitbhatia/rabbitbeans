@@ -41,6 +41,11 @@ type Connection struct {
 	beansConnection *beanstalk.Conn
 }
 
+type BeanHandler interface {
+	Publish(<-chan amqp.Delivery)
+	Consume(chan<- Bean)
+}
+
 // Publish puts jobs onto beanstalkd. The jobs channel expects messages of type amqp.Delivery
 func (conn *Connection) Publish(jobs <-chan amqp.Delivery) {
 
@@ -107,7 +112,7 @@ func (conn *Connection) Consume(jobs chan<- Bean) {
 
 // Dial connects to a beanstalkd instance.
 // Returns a multiplexable connection that can then be used to put/reserve jobs.
-func Dial(config Config) *Connection {
+func Dial(config Config) BeanHandler {
 
 	if config.Host == "" {
 		config.Host = defaultHost
