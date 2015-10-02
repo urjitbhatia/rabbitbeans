@@ -1,3 +1,9 @@
 {
-  "RabbitToBean" : true
+  "RabbitToBean": true,
+  "RabbitConfig": {
+    "Quiet": true
+  },
+  "BeansConfig": {
+    "TickInterval": 1
+  }
 }

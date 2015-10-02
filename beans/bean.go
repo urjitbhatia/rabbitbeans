@@ -13,6 +13,7 @@ const (
 	defaultHost         = "127.0.0.1"
 	defaultPort         = "11300"
 	defaultTickInterval = 2 //seconds
+	defaultBatchSize    = 1000
 )
 
 // Config caputures the fields for defining connection parameters
@@ -78,7 +79,6 @@ func (conn *Connection) ReadFromBeanstalkd(jobs chan<- rabbitbeans.Job) {
 				log.Printf("Polling beanstalkd for beans")
 				var i = 0
 				for {
-					log.Printf("bean read")
 					id, body, err := conn.beansConnection.Reserve(5 * time.Second)
 					if cerr, ok := err.(beanstalk.ConnError); !ok {
 						rabbitbeans.FailOnError(err, "expected connError")
@@ -101,7 +101,6 @@ func (conn *Connection) ReadFromBeanstalkd(jobs chan<- rabbitbeans.Job) {
 						0,
 						"",
 					}
-					log.Printf("bean dispatched")
 					i++
 					if i == conn.config.BatchSize {
 						break
@@ -135,6 +134,9 @@ func Dial(config Config) BeanHandler {
 	}
 	if config.TickInterval == 0 {
 		config.TickInterval = defaultTickInterval
+	}
+	if config.BatchSize == 0 {
+		config.BatchSize = defaultBatchSize
 	}
 
 	var connString = fmt.Sprintf("%s:%s", config.Host, config.Port)

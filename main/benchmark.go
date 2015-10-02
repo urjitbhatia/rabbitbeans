@@ -49,7 +49,9 @@ func rabbitWrite(n, wait, concurrency int) {
 	for i := 0; i < concurrency; i++ {
 		log.Println("Adding rabbit writer:", i)
 		waitGroup.Add(1)
-		WriteToRabbit(waitGroup, messages)
+		config := rabbit.Config{}
+		config.Quiet = true
+		WriteToRabbit(config, waitGroup, messages)
 	}
 
 	// Fake Beans
@@ -75,7 +77,9 @@ func rabbitRead(n, wait, concurrency int) {
 	for i := 0; i < concurrency; i++ {
 		log.Println("Adding rabbit reader:", i)
 		waitGroup.Add(1)
-		ReadFromRabbit(waitGroup, messages)
+		config := rabbit.Config{}
+		config.Quiet = true
+		ReadFromRabbit(config, waitGroup, messages)
 	}
 
 	// Fake Beans
@@ -100,7 +104,8 @@ func beanWrite(n, wait, concurrency int) {
 	for i := 0; i < concurrency; i++ {
 		println("Adding beanstalkd writer")
 		waitGroup.Add(1)
-		WriteToBeanstalkd(waitGroup, jobs)
+		config := beans.Config{}
+		WriteToBeanstalkd(config, waitGroup, jobs)
 	}
 
 	// Fake Rabbits
@@ -126,7 +131,8 @@ func beanRead(n, wait, concurrency int) {
 	for i := 0; i < concurrency; i++ {
 		println("Adding beanstalkd reader")
 		waitGroup.Add(1)
-		ReadFromBeanstalkd(waitGroup, jobs)
+		config := beans.Config{}
+		ReadFromBeanstalkd(config, waitGroup, jobs)
 	}
 
 	// Fake Rabbits

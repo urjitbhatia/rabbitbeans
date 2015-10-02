@@ -15,6 +15,8 @@ import (
 
 type Config struct {
 	RabbitToBean bool // select mode. RabbitToBean consumes from rabbitMq and publishes to Beanstalkd if true, reverse otherwise
+	RabbitConfig rabbit.Config
+	BeansConfig  beans.Config
 }
 
 const (
@@ -29,26 +31,24 @@ func service() {
 		jobs := make(chan rabbitbeans.Job)
 
 		waitGroup.Add(1)
-		ReadFromRabbit(waitGroup, jobs)
+		ReadFromRabbit(config.RabbitConfig, waitGroup, jobs)
 
 		waitGroup.Add(1)
-		WriteToBeanstalkd(waitGroup, jobs)
+		WriteToBeanstalkd(config.BeansConfig, waitGroup, jobs)
 	} else {
 		jobs := make(chan rabbitbeans.Job)
 
 		waitGroup.Add(1)
-		ReadFromBeanstalkd(waitGroup, jobs)
+		ReadFromBeanstalkd(config.BeansConfig, waitGroup, jobs)
 
 		waitGroup.Add(1)
-		WriteToRabbit(waitGroup, jobs)
+		WriteToRabbit(config.RabbitConfig, waitGroup, jobs)
 	}
 
 	waitGroup.Wait()
 }
 
-func ReadFromRabbit(waitGroup sync.WaitGroup, jobs chan<- rabbitbeans.Job) {
-	config := rabbit.Config{}
-	config.Quiet = true
+func ReadFromRabbit(config rabbit.Config, waitGroup sync.WaitGroup, jobs chan<- rabbitbeans.Job) {
 	rabbitConn := rabbit.Dial(config)
 	queueName := "scheduler"
 	go func() {
@@ -57,9 +57,7 @@ func ReadFromRabbit(waitGroup sync.WaitGroup, jobs chan<- rabbitbeans.Job) {
 	}()
 }
 
-func WriteToRabbit(waitGroup sync.WaitGroup, jobs <-chan rabbitbeans.Job) {
-	config := rabbit.Config{}
-	config.Quiet = true
+func WriteToRabbit(config rabbit.Config, waitGroup sync.WaitGroup, jobs <-chan rabbitbeans.Job) {
 	rabbitConn := rabbit.Dial(config)
 	queueName := "scheduler"
 	go func() {
@@ -68,31 +66,17 @@ func WriteToRabbit(waitGroup sync.WaitGroup, jobs <-chan rabbitbeans.Job) {
 	}()
 }
 
-func ReadFromBeanstalkd(waitGroup sync.WaitGroup, jobs chan<- rabbitbeans.Job) {
+func ReadFromBeanstalkd(config beans.Config, waitGroup sync.WaitGroup, jobs chan<- rabbitbeans.Job) {
 	go func() {
 		defer waitGroup.Done()
-		config := beans.Config{
-			"127.0.0.1",
-			"11300",
-			2,
-			false,
-			20000,
-		}
 		beansConn := beans.Dial(config)
 		beansConn.ReadFromBeanstalkd(jobs)
 	}()
 }
 
-func WriteToBeanstalkd(waitGroup sync.WaitGroup, jobs <-chan rabbitbeans.Job) {
+func WriteToBeanstalkd(config beans.Config, waitGroup sync.WaitGroup, jobs <-chan rabbitbeans.Job) {
 	go func() {
 		defer waitGroup.Done()
-		config := beans.Config{
-			"127.0.0.1",
-			"11300",
-			0,
-			true,
-			1000,
-		}
 		beansConn := beans.Dial(config)
 		beansConn.WriteToBeanstalkd(jobs)
 	}()

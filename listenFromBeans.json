@@ -1,3 +1,11 @@
 {
-  "RabbitToBean" : false
+  "RabbitToBean": false,
+  "RabbitConfig": {
+    "Quiet": true
+  },
+  "BeansConfig": {
+    "TickInterval": 1,
+    "Quiet": false,
+    "BatchSize": 1000
+  }
 }
