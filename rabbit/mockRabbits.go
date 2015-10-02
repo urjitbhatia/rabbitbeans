@@ -29,7 +29,7 @@ func (me *TestRabbitHandler) ReadFromRabbit(c chan<- rabbitbeans.Job) {
 		d := rabbitbeans.Job{}
 		d.Body = []byte("test rabbit")
 		d.Acknowledger = &FakeBeanstalkdAcknowledger{}
-		d.TTR = 10
+		d.TTR = time.Duration(100) * time.Minute
 		c <- d
 		time.Sleep(time.Duration(me.WaitPerRabbit) * time.Millisecond)
 	}

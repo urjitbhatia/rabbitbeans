@@ -83,7 +83,8 @@ func (conn *Connection) ReadFromBeanstalkd(jobs chan<- rabbitbeans.Job) {
 					if cerr, ok := err.(beanstalk.ConnError); !ok {
 						rabbitbeans.FailOnError(err, "expected connError")
 					} else if cerr.Err != beanstalk.ErrTimeout {
-						rabbitbeans.FailOnError(err, "expected timeout on reserve")
+						rabbitbeans.LogOnError(err, fmt.Sprintf("expected timeout on reserve %d", id))
+						// Means the job deadline is real soon!! Reserve job anyways
 					} else {
 						break
 					}
