@@ -26,6 +26,8 @@ const (
 func service() {
 	config := configure()
 	// The channel that takes in rabbits (rabbit jobs) and delivers them to beans (beanstalkd)
+	pipeline := rabbitbeans.NewPipeline(createRedisPipe(RedisConfig{}))
+
 	var waitGroup sync.WaitGroup
 	if config.RabbitToBean {
 		jobs := make(chan rabbitbeans.Job)
@@ -40,12 +42,39 @@ func service() {
 
 		waitGroup.Add(1)
 		ReadFromBeanstalkd(config.BeansConfig, waitGroup, jobs)
+		go attachPipeSource(pipeline, jobs)
 
+		sink := make(chan interface{})
+
+		go attachPipeSink(pipeline, sink)
 		waitGroup.Add(1)
-		WriteToRabbit(config.RabbitConfig, waitGroup, jobs)
+		WriteToRabbit(config.RabbitConfig, waitGroup, sink)
 	}
 
 	waitGroup.Wait()
+}
+
+func createRedisPipe(redisConfig RedisConfig) rabbitbeans.Pipe {
+	redisPipe, err := NewRedisPipe(redisConfig)
+	rabbitbeans.FailOnError(err, "Can't connect to redis")
+	return redisPipe
+}
+
+func attachPipeSource(pipeline rabbitbeans.Pipeline, source chan rabbitbeans.Job) {
+	log.Printf("Attaching source to pipe")
+	for msg := range source {
+		pipeline.Enqueue(msg)
+	}
+}
+func attachPipeSink(pipeline rabbitbeans.Pipeline, sink chan interface{}) {
+	pipeline.Dequeue(sink)
+	//	pipeline.Dequeue(func(i interface{}) {
+	//		if s, ok := i.(rabbitbeans.Job); !ok {
+	//			rabbitbeans.LogOnError(errors.New("Cannot cast"), "Error")
+	//		} else {
+	//			sink <- rabbitbeans.Job(s)
+	//		}
+	//	})
 }
 
 func ReadFromRabbit(config rabbit.Config, waitGroup sync.WaitGroup, jobs chan<- rabbitbeans.Job) {
@@ -57,7 +86,7 @@ func ReadFromRabbit(config rabbit.Config, waitGroup sync.WaitGroup, jobs chan<- 
 	}()
 }
 
-func WriteToRabbit(config rabbit.Config, waitGroup sync.WaitGroup, jobs <-chan rabbitbeans.Job) {
+func WriteToRabbit(config rabbit.Config, waitGroup sync.WaitGroup, jobs <-chan interface{}) {
 	rabbitConn := rabbit.Dial(config)
 	queueName := "scheduler"
 	go func() {

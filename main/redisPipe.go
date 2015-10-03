@@ -15,15 +15,21 @@ const (
 )
 
 type RedisConfig struct {
-	Host     string
-	Port     string
-	PoolSize int
+	Host     string // Redis host
+	Port     string // Redis port
+	PoolSize int    // Number of connections in the redis connection pool (default 5)
 }
 
+/*
+ * A Pipe of type redis - intercepts messages and interacts with redis
+ */
 type RedisPipe struct {
 	conn *redis.Client
 }
 
+/*
+ * Creates a new Pipe that has access to Redis.
+ */
 func NewRedisPipe(config RedisConfig) (*RedisPipe, error) {
 	initConfig(&config)
 	log.Printf("Config redis: %v", config)

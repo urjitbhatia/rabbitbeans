@@ -1,6 +1,7 @@
 package rabbit
 
 import (
+	"errors"
 	"fmt"
 	"github.com/streadway/amqp"
 	"github.com/urjitbhatia/rabbitbeans"
@@ -31,7 +32,7 @@ type Connection struct {
 }
 
 type RabbitHandler interface {
-	WriteToRabbit(queueName string, jobs <-chan rabbitbeans.Job)
+	WriteToRabbit(queueName string, jobs <-chan interface{})
 	ReadFromRabbit(queueName string, jobs chan<- rabbitbeans.Job)
 }
 
@@ -50,7 +51,7 @@ func (r RabbitAcknowledger) Nack(id uint64) error {
 // WriteToRabbit connects to the rabbitMQ queue defined in the config
 // (if it does not exit, it will error). Then it pushes to messages on that
 // queue whenever it gets a new one on the jobs channel.
-func (conn *Connection) WriteToRabbit(queueName string, jobs <-chan rabbitbeans.Job) {
+func (conn *Connection) WriteToRabbit(queueName string, jobs <-chan interface{}) {
 
 	ch, err := conn.rabbitConnection.Channel()
 	rabbitbeans.FailOnError(err, "Failed to open a channel")
@@ -72,7 +73,12 @@ func (conn *Connection) WriteToRabbit(queueName string, jobs <-chan rabbitbeans.
 	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
 
 	log.Printf(" [*] Sending rabbits. To exit press CTRL+C")
-	for job := range jobs {
+	for j := range jobs {
+		job, ok := j.(rabbitbeans.Job)
+		if !ok {
+			rabbitbeans.LogOnError(errors.New("Unreadable job on the channel"), "Skipping item")
+			continue
+		}
 		if !conn.config.Quiet {
 			log.Printf("Sending rabbit to queue: %s", string(job.Body))
 		}
