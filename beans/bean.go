@@ -1,6 +1,7 @@
 package beans
 
 import (
+	"errors"
 	"fmt"
 	"github.com/kr/beanstalk"
 	"github.com/urjitbhatia/rabbitbeans"
@@ -36,15 +37,19 @@ type Connection struct {
 }
 
 type BeanHandler interface {
-	WriteToBeanstalkd(<-chan rabbitbeans.Job)
-	ReadFromBeanstalkd(chan<- rabbitbeans.Job)
+	WriteToBeanstalkd(<-chan interface{})
+	ReadFromBeanstalkd(chan<- interface{})
 }
 
 // Publish puts jobs onto beanstalkd. The jobs channel expects messages of type amqp.Delivery
-func (conn *Connection) WriteToBeanstalkd(jobs <-chan rabbitbeans.Job) {
+func (conn *Connection) WriteToBeanstalkd(jobs <-chan interface{}) {
 
 	log.Printf(" [*] Publishing beans. To exit press CTRL+C")
-	for job := range jobs {
+	for j := range jobs {
+		job, ok := j.(rabbitbeans.Job)
+		if !ok {
+			rabbitbeans.FailOnError(errors.New("Unknown message on channel"), "Can't put message on rabbit")
+		}
 		if !conn.config.Quiet {
 			log.Printf("Received a bean to create: %s", job.Body)
 		}
@@ -67,7 +72,7 @@ func (conn *Connection) WriteToBeanstalkd(jobs <-chan rabbitbeans.Job) {
 }
 
 // Consumes jobs off of beanstalkd. The jobs channel posts messages of type beans.Bean
-func (conn *Connection) ReadFromBeanstalkd(jobs chan<- rabbitbeans.Job) {
+func (conn *Connection) ReadFromBeanstalkd(jobs chan<- interface{}) {
 
 	log.Printf(" [*] Consuming beans. To exit press CTRL+C")
 

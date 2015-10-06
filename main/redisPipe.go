@@ -51,6 +51,9 @@ func NewRedisPipe(config RedisConfig) (*RedisPipe, error) {
 	return redisPipe, nil
 }
 
+/*
+ * initConfig sets proper defaults and makes sure config is properly set.
+ */
 func initConfig(config *RedisConfig) {
 	if config.Host == "" {
 		config.Host = defaultHost

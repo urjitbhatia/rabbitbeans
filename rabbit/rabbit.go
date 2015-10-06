@@ -33,7 +33,7 @@ type Connection struct {
 
 type RabbitHandler interface {
 	WriteToRabbit(queueName string, jobs <-chan interface{})
-	ReadFromRabbit(queueName string, jobs chan<- rabbitbeans.Job)
+	ReadFromRabbit(queueName string, jobs chan<- interface{})
 }
 
 type RabbitAcknowledger struct {
@@ -108,7 +108,7 @@ func (conn *Connection) WriteToRabbit(queueName string, jobs <-chan interface{})
 // ReadFromRabbit connects to the rabbitMQ queue defined in the config
 // (if it does not exit, it will error). Then it listens to messages on that
 // queue and redirects then to the jobs channnel
-func (conn *Connection) ReadFromRabbit(queueName string, jobs chan<- rabbitbeans.Job) {
+func (conn *Connection) ReadFromRabbit(queueName string, jobs chan<- interface{}) {
 
 	ch, err := conn.rabbitConnection.Channel()
 	rabbitbeans.FailOnError(err, "Failed to open a channel")

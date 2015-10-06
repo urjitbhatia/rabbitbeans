@@ -1,7 +1,6 @@
 package rabbitbeans
 
 import (
-	"log"
 	"time"
 )
 
@@ -38,41 +37,44 @@ type Pipeline struct {
 	tail chan interface{}
 }
 
+/*
+ * Enqueue method takes a message and adds it to
+ * the pipeline.
+ */
 func (p *Pipeline) Enqueue(item interface{}) {
 	p.head <- item
 }
 
+/*
+ * Dequeue method takes a terminating channel and dequeues the messages
+ * from the pipeline to that channel.
+ */
 func (p *Pipeline) Dequeue(c chan interface{}) {
 	for i := range p.tail {
 		c <- i
 	}
 }
 
-//func (p *Pipeline) Dequeue(handler func(interface{})) {
-//	for i := range p.tail {
-//		handler(i)
-//	}
-//}
-
+/*
+ * Close makes sure that the pipeline accepts no further messages
+ */
 func (p *Pipeline) Close() {
 	close(p.head)
 }
 
-// Pipeline maker takes multiple pipes in order and connects them
+/*
+ * NewPipeline takes multiple pipes in-order and connects them to form a pipeline.
+ * Enqueue and Dequeue methods are used to attach source/sink to the pipeline.
+ */
 func NewPipeline(pipes ...Pipe) Pipeline {
-	log.Printf("1")
 	head := make(chan interface{})
-	log.Printf("2")
 	var next_chan chan interface{}
-	log.Printf("3")
 	for _, pipe := range pipes {
-		log.Printf("4")
 		if next_chan == nil {
 			next_chan = pipe.Process(head)
 		} else {
 			next_chan = pipe.Process(next_chan)
 		}
 	}
-	log.Printf("4")
 	return Pipeline{head: head, tail: next_chan}
 }

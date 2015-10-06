@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/codegangsta/cli"
-	"github.com/urjitbhatia/rabbitbeans"
+	//	"github.com/urjitbhatia/rabbitbeans"
 	"github.com/urjitbhatia/rabbitbeans/beans"
 	"github.com/urjitbhatia/rabbitbeans/rabbit"
 	"log"
@@ -43,7 +43,7 @@ func RunApp(c *cli.Context) {
 func rabbitWrite(n, wait, concurrency int) {
 
 	log.Println("Testing rabbitWrites. Total rabbit writers:", concurrency)
-	messages := make(chan rabbitbeans.Job)
+	messages := make(chan interface{})
 
 	var waitGroup sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
@@ -71,7 +71,7 @@ func rabbitWrite(n, wait, concurrency int) {
 func rabbitRead(n, wait, concurrency int) {
 
 	log.Println("Testing rabbitReads. Total rabbit readers:", concurrency)
-	messages := make(chan rabbitbeans.Job)
+	messages := make(chan interface{})
 
 	var waitGroup sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
@@ -99,7 +99,7 @@ func rabbitRead(n, wait, concurrency int) {
 func beanWrite(n, wait, concurrency int) {
 
 	log.Println("Testing beanWrites. Total bean writers:", concurrency)
-	jobs := make(chan rabbitbeans.Job)
+	jobs := make(chan interface{})
 	var waitGroup sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
 		println("Adding beanstalkd writer")
@@ -125,7 +125,7 @@ func beanWrite(n, wait, concurrency int) {
 func beanRead(n, wait, concurrency int) {
 
 	log.Println("Testing beanReads. Total bean readers:", concurrency)
-	jobs := make(chan rabbitbeans.Job)
+	jobs := make(chan interface{})
 
 	var waitGroup sync.WaitGroup
 	for i := 0; i < concurrency; i++ {

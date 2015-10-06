@@ -30,7 +30,7 @@ func service() {
 
 	var waitGroup sync.WaitGroup
 	if config.RabbitToBean {
-		jobs := make(chan rabbitbeans.Job)
+		jobs := make(chan interface{})
 
 		waitGroup.Add(1)
 		ReadFromRabbit(config.RabbitConfig, waitGroup, jobs)
@@ -38,7 +38,7 @@ func service() {
 		waitGroup.Add(1)
 		WriteToBeanstalkd(config.BeansConfig, waitGroup, jobs)
 	} else {
-		jobs := make(chan rabbitbeans.Job)
+		jobs := make(chan interface{})
 
 		waitGroup.Add(1)
 		ReadFromBeanstalkd(config.BeansConfig, waitGroup, jobs)
@@ -60,7 +60,7 @@ func createRedisPipe(redisConfig RedisConfig) rabbitbeans.Pipe {
 	return redisPipe
 }
 
-func attachPipeSource(pipeline rabbitbeans.Pipeline, source chan rabbitbeans.Job) {
+func attachPipeSource(pipeline rabbitbeans.Pipeline, source chan interface{}) {
 	log.Printf("Attaching source to pipe")
 	for msg := range source {
 		pipeline.Enqueue(msg)
@@ -77,7 +77,7 @@ func attachPipeSink(pipeline rabbitbeans.Pipeline, sink chan interface{}) {
 	//	})
 }
 
-func ReadFromRabbit(config rabbit.Config, waitGroup sync.WaitGroup, jobs chan<- rabbitbeans.Job) {
+func ReadFromRabbit(config rabbit.Config, waitGroup sync.WaitGroup, jobs chan<- interface{}) {
 	rabbitConn := rabbit.Dial(config)
 	queueName := "scheduler"
 	go func() {
@@ -95,7 +95,7 @@ func WriteToRabbit(config rabbit.Config, waitGroup sync.WaitGroup, jobs <-chan i
 	}()
 }
 
-func ReadFromBeanstalkd(config beans.Config, waitGroup sync.WaitGroup, jobs chan<- rabbitbeans.Job) {
+func ReadFromBeanstalkd(config beans.Config, waitGroup sync.WaitGroup, jobs chan<- interface{}) {
 	go func() {
 		defer waitGroup.Done()
 		beansConn := beans.Dial(config)
@@ -103,7 +103,7 @@ func ReadFromBeanstalkd(config beans.Config, waitGroup sync.WaitGroup, jobs chan
 	}()
 }
 
-func WriteToBeanstalkd(config beans.Config, waitGroup sync.WaitGroup, jobs <-chan rabbitbeans.Job) {
+func WriteToBeanstalkd(config beans.Config, waitGroup sync.WaitGroup, jobs <-chan interface{}) {
 	go func() {
 		defer waitGroup.Done()
 		beansConn := beans.Dial(config)

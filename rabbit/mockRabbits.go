@@ -1,6 +1,7 @@
 package rabbit
 
 import (
+	"errors"
 	"github.com/urjitbhatia/rabbitbeans"
 	"log"
 	"time"
@@ -16,13 +17,17 @@ type FakeBeanstalkdAcknowledger struct{}
 func (FakeBeanstalkdAcknowledger) Ack(id uint64) error  { return nil }
 func (FakeBeanstalkdAcknowledger) Nack(id uint64) error { return nil }
 
-func (me *TestRabbitHandler) WriteToRabbit(c <-chan rabbitbeans.Job) {
+func (me *TestRabbitHandler) WriteToRabbit(c <-chan interface{}) {
 	for n := 0; n < me.NumToProduce; n++ {
-		job := <-c
+		j := <-c
+		job, ok := j.(rabbitbeans.Job)
+		if !ok {
+			rabbitbeans.FailOnError(errors.New("Unknown message on channel"), "Can't put message on rabbit")
+		}
 		job.Ack(job.Id)
 	}
 }
-func (me *TestRabbitHandler) ReadFromRabbit(c chan<- rabbitbeans.Job) {
+func (me *TestRabbitHandler) ReadFromRabbit(c chan<- interface{}) {
 
 	log.Println("Waiting for", me.WaitPerRabbit)
 	for i := 0; i < me.NumToProduce; i++ {
