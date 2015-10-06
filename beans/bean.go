@@ -17,9 +17,9 @@ const (
 	defaultBatchSize    = 1000
 )
 
-// Config caputures the fields for defining connection parameters
-// Host points to beanstalkd host
-// Port points to the port beanstalkd host is listening on
+/*
+ * Config caputures the fields for defining connection parameters
+ */
 type Config struct {
 	Host         string // the beanstalkd host
 	Port         string // the beanstalkd host port
@@ -28,20 +28,27 @@ type Config struct {
 	BatchSize    int    // the number of jobs to pull from beanstalkd per poll (if less jobs are ready, it defers to next poll)
 }
 
-// Connection captures the config used to connect to beanstalkd and
-// the internal beanstalkd connection as well. This connection object can then be used
-// to multiplex multiple produce/consume actions
+/*
+ * Connection captures the config used to connect to beanstalkd and
+ * the internal beanstalkd connection as well. This connection object can then be used
+ * to multiplex multiple produce/consume actions
+ */
 type Connection struct {
 	config          Config
 	beansConnection *beanstalk.Conn
 }
 
+/*
+ * BeanHandler allows reading and writing jobs from/to a Beanstalkd instance
+ */
 type BeanHandler interface {
 	WriteToBeanstalkd(<-chan interface{})
 	ReadFromBeanstalkd(chan<- interface{})
 }
 
-// Publish puts jobs onto beanstalkd. The jobs channel expects messages of type amqp.Delivery
+/*
+ * WriteToBeanstalkd puts jobs onto beanstalkd
+ */
 func (conn *Connection) WriteToBeanstalkd(jobs <-chan interface{}) {
 
 	log.Printf(" [*] Publishing beans. To exit press CTRL+C")
@@ -71,7 +78,9 @@ func (conn *Connection) WriteToBeanstalkd(jobs <-chan interface{}) {
 	}
 }
 
-// Consumes jobs off of beanstalkd. The jobs channel posts messages of type beans.Bean
+/*
+ * ReadFromBeanstalkd reads jobs off of beanstalkd.
+ */
 func (conn *Connection) ReadFromBeanstalkd(jobs chan<- interface{}) {
 
 	log.Printf(" [*] Consuming beans. To exit press CTRL+C")
@@ -117,18 +126,24 @@ func (conn *Connection) ReadFromBeanstalkd(jobs chan<- interface{}) {
 	}()
 }
 
-// Implements the Acknowledger interface Ack
+/*
+ * Ack implements the Acknowledger interface Ack
+ */
 func (c *Connection) Ack(id uint64) error {
 	return c.beansConnection.Delete(id)
 }
 
-// Implements the Acknowledger interface Nack
+/*
+ * Nack implements the Acknowledger interface Nack
+ */
 func (c *Connection) Nack(id uint64) error {
 	return c.beansConnection.Release(id, 0, time.Second*2)
 }
 
-// Dial connects to a beanstalkd instance.
-// Returns a multiplexable connection that can then be used to put/reserve jobs.
+/*
+ * Dial connects to a beanstalkd instance.
+ * Returns a multiplexable connection that can then be used to put/reserve jobs.
+ */
 func Dial(config Config) BeanHandler {
 
 	if config.Host == "" {

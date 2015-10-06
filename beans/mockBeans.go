@@ -1,10 +1,10 @@
 package beans
 
 import (
+	"errors"
 	"github.com/urjitbhatia/rabbitbeans"
 	"log"
 	"time"
-	"errors"
 )
 
 type TestBeanHandler struct {
@@ -22,7 +22,7 @@ func (me *TestBeanHandler) WriteToBeanstalkd(c <-chan interface{}) {
 		m := <-c
 		msg, ok := m.(rabbitbeans.Job)
 		if !ok {
-		    rabbitbeans.FailOnError(errors.New("Unknown message on channel"), "Can't put job on beanstalkd")
+			rabbitbeans.FailOnError(errors.New("Unknown message on channel"), "Can't put job on beanstalkd")
 		}
 		msg.Ack(0)
 	}

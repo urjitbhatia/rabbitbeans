@@ -13,19 +13,23 @@ const (
 	LocalhostAmqpUrl = "amqp://guest:guest@localhost:5672/"
 )
 
-// Config captures the fields for defining connection parameters
-// QName holds the name of the queue to connect to
-// AmqpUrl holds the amql url string and
-// AmqpConfig holds the advanced AmqpConfig like Heartbeat etc
+/*
+ * Config captures the fields for defining connection parameters
+ * QName holds the name of the queue to connect to
+ * AmqpUrl holds the amql url string and
+ * AmqpConfig holds the advanced AmqpConfig like Heartbeat etc
+ */
 type Config struct {
 	AmqpUrl    string      // amqp host url
 	AmqpConfig amqp.Config // amqp config
 	Quiet      bool
 }
 
-// Connection captures the config used to connect to rabbitMq and
-// the internal amqp connection as well. This connection object can then be used
-// to multiplex multiple Producers and Consumers
+/*
+ * Connection captures the config used to connect to rabbitMq and
+ * the internal amqp connection as well. This connection object can then be used
+ * to multiplex multiple Producers and Consumers
+ */
 type Connection struct {
 	config           Config
 	rabbitConnection *amqp.Connection
@@ -40,17 +44,25 @@ type RabbitAcknowledger struct {
 	d amqp.Delivery
 }
 
+/*
+ * Ack marks completion of job. Delegates an amqp ack.
+ */
 func (r RabbitAcknowledger) Ack(id uint64) error {
 	return r.d.Ack(false)
 }
 
+/*
+ * Nack marks unsuccessful job takeover. Delegates an amqp nack.
+ */
 func (r RabbitAcknowledger) Nack(id uint64) error {
 	return r.d.Nack(false, true)
 }
 
-// WriteToRabbit connects to the rabbitMQ queue defined in the config
-// (if it does not exit, it will error). Then it pushes to messages on that
-// queue whenever it gets a new one on the jobs channel.
+/*
+ * WriteToRabbit connects to the rabbitMQ queue defined in the config
+ * (if it does not exit, it will error). Then it pushes to messages on that
+ * queue whenever it gets a new one on the jobs channel.
+ */
 func (conn *Connection) WriteToRabbit(queueName string, jobs <-chan interface{}) {
 
 	ch, err := conn.rabbitConnection.Channel()
@@ -105,9 +117,11 @@ func (conn *Connection) WriteToRabbit(queueName string, jobs <-chan interface{})
 	}
 }
 
-// ReadFromRabbit connects to the rabbitMQ queue defined in the config
-// (if it does not exit, it will error). Then it listens to messages on that
-// queue and redirects then to the jobs channnel
+/*
+ * ReadFromRabbit connects to the rabbitMQ queue defined in the config
+ * (if it does not exit, it will error). Then it listens to messages on that
+ * queue and redirects then to the jobs channnel
+ */
 func (conn *Connection) ReadFromRabbit(queueName string, jobs chan<- interface{}) {
 
 	ch, err := conn.rabbitConnection.Channel()
@@ -152,8 +166,10 @@ func (conn *Connection) ReadFromRabbit(queueName string, jobs chan<- interface{}
 	}
 }
 
-// Dial connects to an amqp URL where it expects a rabbitMQ instance to be running.
-// Returns a multiplexable connection that can then be used to produce/consume on different queues
+/*
+ * Dial connects to an amqp URL where it expects a rabbitMQ instance to be running.
+ * Returns a multiplexable connection that can then be used to produce/consume on different queues
+ */
 func Dial(config Config) RabbitHandler {
 
 	if config.AmqpUrl == "" {

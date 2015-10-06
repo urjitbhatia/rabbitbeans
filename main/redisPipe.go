@@ -22,7 +22,7 @@ type RedisConfig struct {
 }
 
 /*
- * Creates a new Pipe that has access to Redis.
+ * NewRedisPool creates a new pool of redis connections
  */
 func NewRedisPool(config RedisConfig) *pool.Pool {
 	initConfig(&config)
