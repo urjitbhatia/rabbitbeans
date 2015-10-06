@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	protocol        = "tcp"
 	defaultHost     = "localhost"
 	defaultPort     = "6379"
 	defaultPoolSize = 5
@@ -21,34 +22,18 @@ type RedisConfig struct {
 }
 
 /*
- * A Pipe of type redis - intercepts messages and interacts with redis
- */
-type RedisPipe struct {
-	conn *redis.Client
-}
-
-/*
  * Creates a new Pipe that has access to Redis.
  */
-func NewRedisPipe(config RedisConfig) (*RedisPipe, error) {
+func NewRedisPool(config RedisConfig) *pool.Pool {
 	initConfig(&config)
-	log.Printf("Config redis: %v", config)
-	p, err := pool.New("tcp", fmt.Sprintf("%s:%s", config.Host, config.Port), config.PoolSize)
+	log.Printf("Creating Redis pool with config: %v", config)
+	p, err := pool.New(protocol, fmt.Sprintf("%s:%s", config.Host, config.Port), config.PoolSize)
 	if err != nil {
-		// handle error
+		// fatal error
 		rabbitbeans.FailOnError(err, "Cannot create redis pool")
 	}
 
-	// In another go-routine
-	conn, err := p.Get()
-	if err != nil {
-		// handle error
-		rabbitbeans.FailOnError(err, "Cannot connecto to redis")
-	}
-	redisPipe := &RedisPipe{
-		conn,
-	}
-	return redisPipe, nil
+	return p
 }
 
 /*
@@ -66,11 +51,32 @@ func initConfig(config *RedisConfig) {
 	}
 }
 
-func (rp *RedisPipe) Process(in chan interface{}) chan interface{} {
+/*
+ * RedisPipe implements a pipe interface that has access to a Redis client connection.
+ */
+type RedisPipe struct {
+	*redis.Client
+}
+
+/*
+ * Creates a new Pipe that has access to Redis.
+ */
+func NewRedisPipe(redisPool pool.Pool) rabbitbeans.Pipe {
+	client, err := redisPool.Get()
+	if err != nil {
+		// handle error
+		rabbitbeans.FailOnError(err, "Cannot get redis connection from pool")
+	}
+	return RedisPipe{client}
+}
+
+// Process transforms every message passing through the "RedisPipe"
+func (rp RedisPipe) Process(in chan interface{}) chan interface{} {
 	out := make(chan interface{})
 	go func() {
 		for i := range in {
-			log.Printf("Got int: %d", i)
+			rp.Cmd("SET", "foo", "bar")
+			log.Printf("REdis done")
 			out <- i
 		}
 		close(out)

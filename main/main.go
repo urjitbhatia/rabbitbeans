@@ -25,8 +25,9 @@ const (
 
 func service() {
 	config := configure()
+	redisPool := NewRedisPool(RedisConfig{})
 	// The channel that takes in rabbits (rabbit jobs) and delivers them to beans (beanstalkd)
-	pipeline := rabbitbeans.NewPipeline(createRedisPipe(RedisConfig{}))
+	pipeline := rabbitbeans.NewPipeline(NewRedisPipe(*redisPool))
 
 	var waitGroup sync.WaitGroup
 	if config.RabbitToBean {
@@ -52,12 +53,6 @@ func service() {
 	}
 
 	waitGroup.Wait()
-}
-
-func createRedisPipe(redisConfig RedisConfig) rabbitbeans.Pipe {
-	redisPipe, err := NewRedisPipe(redisConfig)
-	rabbitbeans.FailOnError(err, "Can't connect to redis")
-	return redisPipe
 }
 
 func attachPipeSource(pipeline rabbitbeans.Pipeline, source chan interface{}) {
